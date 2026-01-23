@@ -21,7 +21,7 @@ const navigation = [
   { name: "Users", href: "/users", icon: Users },
   { name: "Feature Flags", href: "/feature-flags", icon: Flag },
   { name: "Audit Logs", href: "/audit-logs", icon: ScrollText },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Settings", href: "/admin-settings", icon: Settings },
 ];
 
 export function AdminSidebar() {
