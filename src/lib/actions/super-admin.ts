@@ -78,7 +78,7 @@ export async function createOrganization(data: {
             InvitationEmail({
               organizationName: newOrg.name,
               role: "Project Manager",
-              inviteLink: `${process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/sign-in`,
+              inviteLink: `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/sign-in`,
               inviterName: data.pmName || existingUser.name || "there"
             })
           );
@@ -106,8 +106,8 @@ export async function createOrganization(data: {
           status: "PENDING",
         });
 
-        // Send invitation email
-        const inviteUrl = `${process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`;
+        // Send invitation email - link to MAIN APP (materials.infradyn.com) not admin
+        const inviteUrl = `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/invite/${token}`;
         
         try {
           const emailHtml = await render(

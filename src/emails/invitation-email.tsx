@@ -13,7 +13,6 @@ import {
     Text,
     Tailwind,
 } from "@react-email/components";
-import * as React from "react";
 
 interface InvitationEmailProps {
     organizationName: string;
