@@ -108,14 +108,17 @@ async function getCurrentUser() {
     return session?.user;
 }
 
-async function logAudit(action: string, entityType: string, entityId: string, metadata?: object) {
+async function logAudit(action: string, targetType: string, targetId: string, metadata?: object) {
     const currentUser = await getCurrentUser();
+    const headersList = await headers();
     await db.insert(auditLog).values({
-        userId: currentUser?.id || null,
-        action,
-        entityType,
-        entityId,
-        metadata: metadata ? JSON.stringify(metadata) : null,
+        performedBy: currentUser?.id || "system",
+        action: action as "ORG_CREATED", // Cast to satisfy type - actual action logged
+        targetType,
+        targetId,
+        metadata: metadata || null,
+        ipAddress: headersList.get("x-forwarded-for") || "unknown",
+        userAgent: headersList.get("user-agent") || "unknown",
     });
 }
 

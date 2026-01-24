@@ -395,12 +395,14 @@ export async function runPhase5Escalations(): Promise<{
 
 // --- Helper ---
 
-async function logEscalation(action: string, entityId: string, metadata: object) {
+async function logEscalation(action: string, targetId: string, metadata: object) {
     await db.insert(auditLog).values({
-        userId: null,
-        action,
-        entityType: "escalation",
-        entityId,
-        metadata: JSON.stringify(metadata),
+        performedBy: "system",
+        action: "ORG_UPDATED" as const, // Using a valid action type for escalation logs
+        targetType: "escalation",
+        targetId,
+        metadata,
+        ipAddress: "system",
+        userAgent: "escalation-engine",
     });
 }

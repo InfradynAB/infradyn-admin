@@ -68,7 +68,7 @@ export function SignInForm() {
                         setShowTwoFactor(true);
                         toast.info("Two-factor authentication required.");
                     } else {
-                        router.push("/dashboard");
+                        router.push("/");
                         toast.success("Signed in successfully");
                     }
                     setIsLoading(false);
@@ -95,7 +95,7 @@ export function SignInForm() {
         }
 
         toast.success("Two-Factor Authentication verified");
-        router.push("/dashboard");
+        router.push("/");
         setIsLoading(false);
     }
 
@@ -103,7 +103,7 @@ export function SignInForm() {
         setIsLoading(true);
         await authClient.signIn.social({
             provider: "google",
-            callbackURL: "/dashboard",
+            callbackURL: "/",
         }, {
             onSuccess: () => {
                 // Redirect happens automatically

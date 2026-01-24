@@ -236,19 +236,14 @@ export async function getPlatformStats() {
     // Total revenue
     const revenueResult = await db
       .select({ total: sql<number>`SUM(CAST(${organization.monthlyRevenue} AS NUMERIC))` })
-      .from(organization)
-      .where(eq(organization.status, "ACTIVE"));
+      .from(organization);
 
-    // Active organizations (activity in last 7 days)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    // Active organizations (status = ACTIVE or TRIAL, not suspended/cancelled)
     const activeOrgsResult = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(organization)
       .where(
-        and(
-          eq(organization.status, "ACTIVE"),
-          gte(organization.lastActivityAt, sevenDaysAgo)
-        )
+        sql`${organization.status} IN ('ACTIVE', 'TRIAL')`
       );
 
     // Total organizations
@@ -261,6 +256,79 @@ export async function getPlatformStats() {
       .select({ count: sql<number>`COUNT(*)` })
       .from(user);
 
+    // Get organizations by plan for pie chart
+    const planDistribution = await db
+      .select({ 
+        plan: organization.plan, 
+        count: sql<number>`COUNT(*)` 
+      })
+      .from(organization)
+      .groupBy(organization.plan);
+
+    // Get monthly growth data (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    // Get organizations created per month
+    const orgGrowth = await db
+      .select({
+        month: sql<string>`TO_CHAR(${organization.createdAt}, 'Mon')`,
+        monthNum: sql<number>`EXTRACT(MONTH FROM ${organization.createdAt})`,
+        year: sql<number>`EXTRACT(YEAR FROM ${organization.createdAt})`,
+        count: sql<number>`COUNT(*)`
+      })
+      .from(organization)
+      .where(gte(organization.createdAt, sixMonthsAgo))
+      .groupBy(
+        sql`TO_CHAR(${organization.createdAt}, 'Mon')`,
+        sql`EXTRACT(MONTH FROM ${organization.createdAt})`,
+        sql`EXTRACT(YEAR FROM ${organization.createdAt})`
+      )
+      .orderBy(
+        sql`EXTRACT(YEAR FROM ${organization.createdAt})`,
+        sql`EXTRACT(MONTH FROM ${organization.createdAt})`
+      );
+
+    // Get users created per month
+    const userGrowth = await db
+      .select({
+        month: sql<string>`TO_CHAR(${user.createdAt}, 'Mon')`,
+        monthNum: sql<number>`EXTRACT(MONTH FROM ${user.createdAt})`,
+        year: sql<number>`EXTRACT(YEAR FROM ${user.createdAt})`,
+        count: sql<number>`COUNT(*)`
+      })
+      .from(user)
+      .where(gte(user.createdAt, sixMonthsAgo))
+      .groupBy(
+        sql`TO_CHAR(${user.createdAt}, 'Mon')`,
+        sql`EXTRACT(MONTH FROM ${user.createdAt})`,
+        sql`EXTRACT(YEAR FROM ${user.createdAt})`
+      )
+      .orderBy(
+        sql`EXTRACT(YEAR FROM ${user.createdAt})`,
+        sql`EXTRACT(MONTH FROM ${user.createdAt})`
+      );
+
+    // Get revenue by month (sum of monthlyRevenue for orgs created that month)
+    const revenueGrowth = await db
+      .select({
+        month: sql<string>`TO_CHAR(${organization.createdAt}, 'Mon')`,
+        monthNum: sql<number>`EXTRACT(MONTH FROM ${organization.createdAt})`,
+        year: sql<number>`EXTRACT(YEAR FROM ${organization.createdAt})`,
+        revenue: sql<number>`SUM(CAST(${organization.monthlyRevenue} AS NUMERIC))`
+      })
+      .from(organization)
+      .where(gte(organization.createdAt, sixMonthsAgo))
+      .groupBy(
+        sql`TO_CHAR(${organization.createdAt}, 'Mon')`,
+        sql`EXTRACT(MONTH FROM ${organization.createdAt})`,
+        sql`EXTRACT(YEAR FROM ${organization.createdAt})`
+      )
+      .orderBy(
+        sql`EXTRACT(YEAR FROM ${organization.createdAt})`,
+        sql`EXTRACT(MONTH FROM ${organization.createdAt})`
+      );
+
     return {
       success: true,
       stats: {
@@ -269,6 +337,24 @@ export async function getPlatformStats() {
         totalOrganizations: totalOrgsResult[0]?.count || 0,
         totalUsers: totalUsersResult[0]?.count || 0,
       },
+      chartData: {
+        planDistribution: planDistribution.map(p => ({
+          name: p.plan,
+          value: Number(p.count)
+        })),
+        orgGrowth: orgGrowth.map(o => ({
+          month: o.month,
+          count: Number(o.count)
+        })),
+        userGrowth: userGrowth.map(u => ({
+          month: u.month,
+          count: Number(u.count)
+        })),
+        revenueGrowth: revenueGrowth.map(r => ({
+          month: r.month,
+          revenue: Number(r.revenue) || 0
+        }))
+      }
     };
   } catch (error) {
     console.error("Error fetching platform stats:", error);
@@ -427,13 +513,59 @@ export async function searchUsers(query: string) {
   await requireSuperAdmin();
 
   try {
+    // If no query, return all users
     if (!query || query.length < 2) {
-      return { success: true, users: [] };
+      // First get users with their direct organizationId
+      const usersWithDirectOrg = await db
+        .select({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          isSuspended: user.isSuspended,
+          lastLoginAt: user.lastLoginAt,
+          organizationId: user.organizationId,
+          organizationName: organization.name,
+          createdAt: user.createdAt,
+        })
+        .from(user)
+        .leftJoin(organization, eq(user.organizationId, organization.id))
+        .orderBy(desc(user.createdAt))
+        .limit(100);
+
+      // For users without organizationId, check member table
+      const enrichedUsers = await Promise.all(
+        usersWithDirectOrg.map(async (u) => {
+          if (!u.organizationId && !u.organizationName) {
+            // Check member table for organization
+            const membership = await db
+              .select({
+                organizationId: member.organizationId,
+                organizationName: organization.name,
+              })
+              .from(member)
+              .innerJoin(organization, eq(member.organizationId, organization.id))
+              .where(eq(member.userId, u.id))
+              .limit(1);
+
+            if (membership.length > 0) {
+              return {
+                ...u,
+                organizationId: membership[0].organizationId,
+                organizationName: membership[0].organizationName,
+              };
+            }
+          }
+          return u;
+        })
+      );
+
+      return { success: true, users: enrichedUsers };
     }
 
     const searchQuery = `%${query.toLowerCase()}%`;
     
-    const users = await db
+    const usersWithDirectOrg = await db
       .select({
         id: user.id,
         name: user.name,
@@ -443,6 +575,7 @@ export async function searchUsers(query: string) {
         lastLoginAt: user.lastLoginAt,
         organizationId: user.organizationId,
         organizationName: organization.name,
+        createdAt: user.createdAt,
       })
       .from(user)
       .leftJoin(organization, eq(user.organizationId, organization.id))
@@ -451,7 +584,33 @@ export async function searchUsers(query: string) {
       )
       .limit(50);
 
-    return { success: true, users };
+    // Enrich with member table data
+    const enrichedUsers = await Promise.all(
+      usersWithDirectOrg.map(async (u) => {
+        if (!u.organizationId && !u.organizationName) {
+          const membership = await db
+            .select({
+              organizationId: member.organizationId,
+              organizationName: organization.name,
+            })
+            .from(member)
+            .innerJoin(organization, eq(member.organizationId, organization.id))
+            .where(eq(member.userId, u.id))
+            .limit(1);
+
+          if (membership.length > 0) {
+            return {
+              ...u,
+              organizationId: membership[0].organizationId,
+              organizationName: membership[0].organizationName,
+            };
+          }
+        }
+        return u;
+      })
+    );
+
+    return { success: true, users: enrichedUsers };
   } catch (error) {
     console.error("Error searching users:", error);
     return { success: false, error: "Failed to search users" };

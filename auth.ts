@@ -6,6 +6,8 @@ import db from "./db/drizzle";
 import { render } from "@react-email/render";
 import OtpEmail from "./src/emails/otp-email";
 import ResetPasswordEmail from "./src/emails/reset-password-email";
+import { user } from "./db/schema";
+import { eq } from "drizzle-orm";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -30,6 +32,22 @@ export const auth = betterAuth({
     session: {
         expiresIn: 60 * 60 * 24 * 7, // 1 week
         updateAge: 60 * 60 * 24, // 1 day
+    },
+    databaseHooks: {
+        session: {
+            create: {
+                after: async (session) => {
+                    // Update lastLoginAt when a session is created
+                    try {
+                        await db.update(user)
+                            .set({ lastLoginAt: new Date() })
+                            .where(eq(user.id, session.userId));
+                    } catch (error) {
+                        console.error("Failed to update lastLoginAt:", error);
+                    }
+                }
+            }
+        }
     },
     emailAndPassword: {
         enabled: true,

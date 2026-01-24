@@ -9,17 +9,18 @@ import { headers } from "next/headers";
 interface AuditLogEntry {
     id: string;
     action: string;
-    entityType: string | null;
-    entityId: string | null;
-    metadata: any;
+    targetType: string | null;
+    targetId: string | null;
+    targetName: string | null;
+    metadata: unknown;
     createdAt: Date;
-    userId: string | null;
+    performedBy: string;
     userName?: string | null;
 }
 
 interface GetAuditLogsInput {
-    entityType?: string;
-    entityId?: string;
+    targetType?: string;
+    targetId?: string;
     limit?: number;
 }
 
@@ -39,22 +40,23 @@ export async function getAuditLogs(input: GetAuditLogsInput = {}): Promise<{
 
         const whereConditions = [];
 
-        if (input.entityType) {
-            whereConditions.push(eq(auditLog.entityType, input.entityType));
+        if (input.targetType) {
+            whereConditions.push(eq(auditLog.targetType, input.targetType));
         }
-        if (input.entityId) {
-            whereConditions.push(eq(auditLog.entityId, input.entityId));
+        if (input.targetId) {
+            whereConditions.push(eq(auditLog.targetId, input.targetId));
         }
 
         const logs = await db
             .select({
                 id: auditLog.id,
                 action: auditLog.action,
-                entityType: auditLog.entityType,
-                entityId: auditLog.entityId,
+                targetType: auditLog.targetType,
+                targetId: auditLog.targetId,
+                targetName: auditLog.targetName,
                 metadata: auditLog.metadata,
                 createdAt: auditLog.createdAt,
-                userId: auditLog.userId,
+                performedBy: auditLog.performedBy,
             })
             .from(auditLog)
             .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
@@ -68,23 +70,22 @@ export async function getAuditLogs(input: GetAuditLogsInput = {}): Promise<{
         for (const log of logs) {
             let userName: string | null = null;
 
-            if (log.userId) {
-                if (userCache[log.userId]) {
-                    userName = userCache[log.userId];
+            if (log.performedBy) {
+                if (userCache[log.performedBy]) {
+                    userName = userCache[log.performedBy];
                 } else {
                     const u = await db.query.user.findFirst({
-                        where: eq(user.id, log.userId),
+                        where: eq(user.id, log.performedBy),
                     });
                     if (u) {
                         userName = u.name;
-                        userCache[log.userId] = u.name;
+                        userCache[log.performedBy] = u.name;
                     }
                 }
             }
 
             enrichedLogs.push({
                 ...log,
-                metadata: log.metadata ? JSON.parse(log.metadata as string) : null,
                 userName,
             });
         }
@@ -110,20 +111,21 @@ export async function getPOAuditLogs(purchaseOrderId: string): Promise<{
             return { success: false, error: "Unauthorized" };
         }
 
-        // Get logs that mention this PO in entityId or metadata
+        // Get logs that mention this PO in targetId or metadata
         const logs = await db
             .select({
                 id: auditLog.id,
                 action: auditLog.action,
-                entityType: auditLog.entityType,
-                entityId: auditLog.entityId,
+                targetType: auditLog.targetType,
+                targetId: auditLog.targetId,
+                targetName: auditLog.targetName,
                 metadata: auditLog.metadata,
                 createdAt: auditLog.createdAt,
-                userId: auditLog.userId,
+                performedBy: auditLog.performedBy,
             })
             .from(auditLog)
             .where(
-                sql`${auditLog.entityId} = ${purchaseOrderId} 
+                sql`${auditLog.targetId} = ${purchaseOrderId} 
                     OR ${auditLog.metadata}::text LIKE ${'%' + purchaseOrderId + '%'}`
             )
             .orderBy(desc(auditLog.createdAt))
@@ -136,23 +138,22 @@ export async function getPOAuditLogs(purchaseOrderId: string): Promise<{
         for (const log of logs) {
             let userName: string | null = null;
 
-            if (log.userId) {
-                if (userCache[log.userId]) {
-                    userName = userCache[log.userId];
+            if (log.performedBy) {
+                if (userCache[log.performedBy]) {
+                    userName = userCache[log.performedBy];
                 } else {
                     const u = await db.query.user.findFirst({
-                        where: eq(user.id, log.userId),
+                        where: eq(user.id, log.performedBy),
                     });
                     if (u) {
                         userName = u.name;
-                        userCache[log.userId] = u.name;
+                        userCache[log.performedBy] = u.name;
                     }
                 }
             }
 
             enrichedLogs.push({
                 ...log,
-                metadata: log.metadata ? JSON.parse(log.metadata as string) : null,
                 userName,
             });
         }

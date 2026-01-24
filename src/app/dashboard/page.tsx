@@ -15,6 +15,12 @@ export default async function DashboardPage() {
         redirect("/sign-in");
     }
 
+    // Redirect SUPER_ADMIN users to the admin dashboard
+    const user = session.user as { role?: string };
+    if (user.role === "SUPER_ADMIN") {
+        redirect("/");
+    }
+
     return (
         <div className="space-y-8">
             <div>

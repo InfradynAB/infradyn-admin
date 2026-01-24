@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, User as UserIcon, Copy } from "lucide-react";
+import { Search, User as UserIcon, Copy, Loader2 } from "lucide-react";
 import { searchUsers } from "@/lib/actions/super-admin";
 import { generateImpersonationToken } from "@/lib/actions/feature-flags";
 import { toast } from "sonner";
@@ -33,17 +33,23 @@ interface SearchUser {
 export function UsersList() {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<SearchUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load all users on mount
+  useEffect(() => {
+    const loadUsers = async () => {
+      setLoading(true);
+      const result = await searchUsers("");
+      if (result.success) {
+        setUsers(result.users || []);
+      }
+      setLoading(false);
+    };
+    loadUsers();
+  }, []);
 
   const handleSearch = async () => {
-    if (!search.trim() || search.length < 2) {
-      toast.error("Please enter at least 2 characters to search");
-      return;
-    }
-    
     setLoading(true);
-    setSearched(true);
     const result = await searchUsers(search);
     if (result.success) {
       setUsers(result.users || []);
@@ -87,7 +93,7 @@ export function UsersList() {
               className="bg-[#0F6157] hover:bg-[#0d5048]"
               disabled={loading}
             >
-              Search
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
             </Button>
           </div>
         </CardContent>
@@ -95,18 +101,16 @@ export function UsersList() {
 
       {/* Results */}
       <Card>
-        {!searched ? (
+        {loading ? (
           <CardContent className="py-12 text-center">
-            <UserIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
-              Search for users by email or name to view details and generate impersonation links
-            </p>
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Loading users...</p>
           </CardContent>
-        ) : users.length === 0 && !loading ? (
+        ) : users.length === 0 ? (
           <CardContent className="py-12 text-center">
             <UserIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              No users found matching &ldquo;{search}&rdquo;
+              {search ? `No users found matching "${search}"` : "No users found"}
             </p>
           </CardContent>
         ) : (
@@ -122,50 +126,42 @@ export function UsersList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
-                    Searching...
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{user.name}</p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell>{user.organizationName || "N/A"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{user.role}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={user.isSuspended ? "destructive" : "default"}
+                    >
+                      {user.isSuspended ? "Suspended" : "Active"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {user.lastLoginAt 
+                      ? formatDistanceToNow(new Date(user.lastLoginAt), { addSuffix: true })
+                      : "Never"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleImpersonate(user.id)}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Impersonate
+                    </Button>
                   </TableCell>
                 </TableRow>
-              ) : (
-                users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.organizationName || "N/A"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user.role}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={user.isSuspended ? "destructive" : "default"}
-                      >
-                        {user.isSuspended ? "Suspended" : "Active"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {user.lastLoginAt 
-                        ? formatDistanceToNow(new Date(user.lastLoginAt), { addSuffix: true })
-                        : "Never"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleImpersonate(user.id)}
-                      >
-                        <Copy className="mr-2 h-4 w-4" />
-                        Impersonate
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
         )}

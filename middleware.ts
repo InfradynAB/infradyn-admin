@@ -23,13 +23,13 @@ export async function middleware(request: NextRequest) {
 
   // No session - go to login
   if (!session?.user) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/sign-in', request.url));
   }
 
   // Check role
   const user = session.user as { role?: string };
   if (user.role !== 'SUPER_ADMIN') {
-    return NextResponse.redirect(new URL('/login?error=access_denied', request.url));
+    return NextResponse.redirect(new URL('/sign-in?error=access_denied', request.url));
   }
 
   return NextResponse.next();

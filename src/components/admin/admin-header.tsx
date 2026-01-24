@@ -12,12 +12,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, Menu } from "lucide-react";
+import { Bell, Moon, Sun, Search } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
 
 export function AdminHeader() {
+  const router = useRouter();
+  const { theme, setTheme } = useTheme();
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const getUser = async () => {
       const response = await authClient.getSession();
       if (response?.data?.user) {
@@ -30,32 +37,58 @@ export function AdminHeader() {
     getUser();
   }, []);
 
-  return (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
-      <div className="flex items-center justify-between px-6 py-4">
-        {/* Mobile menu button */}
-        <Button variant="ghost" size="icon" className="lg:hidden">
-          <Menu className="h-5 w-5" />
-        </Button>
+  const handleSignOut = async () => {
+    await authClient.signOut();
+    router.push("/sign-in");
+  };
 
-        {/* Search or breadcrumb could go here */}
-        <div className="flex-1"></div>
+  return (
+    <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b">
+      <div className="flex items-center justify-between px-6 h-16">
+        {/* Search */}
+        <div className="hidden md:flex items-center flex-1 max-w-md">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search organizations, users..." 
+              className="pl-9 bg-muted/50 border-0 focus-visible:ring-1"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 md:hidden" />
 
         {/* Right side actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {/* Theme Toggle */}
+          {mounted && (
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="rounded-full"
+            >
+              {theme === "dark" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </Button>
+          )}
+
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative rounded-full">
             <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
           </Button>
 
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                <Avatar>
-                  <AvatarImage src={user?.email} />
-                  <AvatarFallback className="bg-[#0F6157] text-white">
+              <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="bg-gradient-to-br from-[#0F6157] to-[#0d5048] text-white text-sm font-medium">
                     {user?.name?.charAt(0).toUpperCase() || "A"}
                   </AvatarFallback>
                 </Avatar>
@@ -66,14 +99,23 @@ export function AdminHeader() {
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium">{user?.name}</p>
                   <p className="text-xs text-muted-foreground">{user?.email}</p>
-                  <p className="text-xs text-[#0F6157] font-medium">Super Admin</p>
+                  <span className="inline-flex items-center gap-1 text-xs text-[#0F6157] font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#0F6157]" />
+                    Super Admin
+                  </span>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile Settings</DropdownMenuItem>
-              <DropdownMenuItem>Team Management</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/admin-settings")}>
+                Settings
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">Sign Out</DropdownMenuItem>
+              <DropdownMenuItem 
+                className="text-red-600 focus:text-red-600"
+                onClick={handleSignOut}
+              >
+                Sign Out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

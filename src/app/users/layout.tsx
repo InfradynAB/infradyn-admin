@@ -4,11 +4,13 @@ import { AdminHeader } from "@/components/admin/admin-header";
 
 export default function UsersLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <AdminSidebar />
-      <div className="lg:pl-64">
+      <div className="lg:pl-[260px]">
         <AdminHeader />
-        <main className="p-6">{children}</main>
+        <main className="p-6 lg:p-8">
+          <div className="max-w-[1600px] mx-auto">{children}</div>
+        </main>
       </div>
     </div>
   );
