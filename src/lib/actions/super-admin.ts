@@ -1,7 +1,7 @@
 "use server";
 
 import db from "@/db/drizzle";
-import { organization, user, member, auditLog, superAdminInvitation } from "@/db/schema";
+import { organization, user, member, auditLog, superAdminInvitation, invitation } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/rbac";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -9,6 +9,7 @@ import { headers } from "next/headers";
 import { Resend } from "resend";
 import { render } from "@react-email/render";
 import SuperAdminInviteEmail from "@/emails/super-admin-invite-email";
+import InvitationEmail from "@/emails/invitation-email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -45,19 +46,15 @@ export async function createOrganization(data: {
       lastActivityAt: new Date(),
     }).returning();
 
-    // If PM email provided, create or link PM user
+    // If PM email provided, send invitation
     if (data.pmEmail) {
       // Check if user already exists
       const existingUser = await db.query.user.findFirst({
         where: eq(user.email, data.pmEmail),
       });
 
-      let pmUser;
-      
       if (existingUser) {
         // Link existing user to new org as PM
-        pmUser = existingUser;
-        
         // Update their organization if they don't have one
         if (!existingUser.organizationId) {
           await db.update(user)
@@ -74,26 +71,69 @@ export async function createOrganization(data: {
           organizationId: newOrg.id,
           role: "PM",
         });
-      } else {
-        // Create new PM user
-        [pmUser] = await db.insert(user).values({
-          id: nanoid(),
-          email: data.pmEmail,
-          name: data.pmName || data.pmEmail.split("@")[0],
-          role: "PM",
-          organizationId: newOrg.id,
-          emailVerified: false,
-        }).returning();
 
-        // Add them as a member
-        await db.insert(member).values({
-          userId: pmUser.id,
+        // Still send email notification that they've been added
+        try {
+          const emailHtml = await render(
+            InvitationEmail({
+              organizationName: newOrg.name,
+              role: "Project Manager",
+              inviteLink: `${process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/sign-in`,
+              inviterName: data.pmName || existingUser.name || "there"
+            })
+          );
+
+          await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+            to: data.pmEmail,
+            subject: `You've been added to ${newOrg.name} on Infradyn`,
+            html: emailHtml
+          });
+        } catch (emailError) {
+          console.error("[CREATE_ORG] Failed to send notification email:", emailError);
+        }
+      } else {
+        // Create invitation for new PM
+        const token = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+        await db.insert(invitation).values({
           organizationId: newOrg.id,
+          email: data.pmEmail,
           role: "PM",
+          token,
+          expiresAt,
+          status: "PENDING",
         });
 
-        // TODO: Send welcome email with password setup link
-        // await sendWelcomeEmail(pmUser.email, newOrg.name);
+        // Send invitation email
+        const inviteUrl = `${process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`;
+        
+        try {
+          const emailHtml = await render(
+            InvitationEmail({
+              organizationName: newOrg.name,
+              role: "Project Manager",
+              inviteLink: inviteUrl,
+              inviterName: data.pmName || "there"
+            })
+          );
+
+          const result = await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+            to: data.pmEmail,
+            subject: `Join ${newOrg.name} on Infradyn`,
+            html: emailHtml
+          });
+
+          if (result.error) {
+            console.error("[CREATE_ORG] Resend error:", result.error);
+          } else {
+            console.log("[CREATE_ORG] Invitation email sent to:", data.pmEmail);
+          }
+        } catch (emailError) {
+          console.error("[CREATE_ORG] Failed to send invitation email:", emailError);
+        }
       }
     }
 
