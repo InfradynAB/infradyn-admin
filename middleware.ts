@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Simple session cookie check for Edge Runtime
-// Full session validation happens in API routes/server components
-const SESSION_COOKIE_NAME = 'better-auth.session_token';
+// Better Auth cookie names vary by environment
+// Production (HTTPS): __Secure-better-auth.session_token
+// Development (HTTP): better-auth.session_token
+const SESSION_COOKIE_NAMES = [
+  '__Secure-better-auth.session_token',
+  'better-auth.session_token',
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -27,9 +31,11 @@ export async function middleware(request: NextRequest) {
 
   // Check for session cookie existence (basic auth gate)
   // Full validation happens server-side
-  const sessionToken = request.cookies.get(SESSION_COOKIE_NAME);
+  const hasSessionCookie = SESSION_COOKIE_NAMES.some(
+    name => request.cookies.get(name)?.value
+  );
 
-  if (!sessionToken?.value) {
+  if (!hasSessionCookie) {
     return NextResponse.redirect(new URL('/sign-in', request.url));
   }
 
