@@ -14,22 +14,43 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, User as UserIcon, Copy } from "lucide-react";
+import { searchUsers } from "@/lib/actions/super-admin";
 import { generateImpersonationToken } from "@/lib/actions/feature-flags";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+
+interface SearchUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "SUPER_ADMIN" | "PM" | "SUPPLIER" | "QA" | "SITE_RECEIVER";
+  organizationName: string | null;
+  organizationId: string | null;
+  lastLoginAt: Date | null;
+  isSuspended: boolean | null;
+}
 
 export function UsersList() {
   const [search, setSearch] = useState("");
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<SearchUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   const handleSearch = async () => {
+    if (!search.trim() || search.length < 2) {
+      toast.error("Please enter at least 2 characters to search");
+      return;
+    }
+    
     setLoading(true);
-    // TODO: Implement user search API endpoint
-    // For now, showing placeholder
-    setTimeout(() => {
-      setUsers([]);
-      setLoading(false);
-    }, 500);
+    setSearched(true);
+    const result = await searchUsers(search);
+    if (result.success) {
+      setUsers(result.users || []);
+    } else {
+      toast.error(result.error || "Failed to search users");
+    }
+    setLoading(false);
   };
 
   const handleImpersonate = async (userId: string) => {
@@ -74,11 +95,18 @@ export function UsersList() {
 
       {/* Results */}
       <Card>
-        {users.length === 0 && !loading ? (
+        {!searched ? (
           <CardContent className="py-12 text-center">
             <UserIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              Search for users to view details and generate impersonation links
+              Search for users by email or name to view details and generate impersonation links
+            </p>
+          </CardContent>
+        ) : users.length === 0 && !loading ? (
+          <CardContent className="py-12 text-center">
+            <UserIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              No users found matching &ldquo;{search}&rdquo;
             </p>
           </CardContent>
         ) : (
@@ -109,7 +137,7 @@ export function UsersList() {
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                     </TableCell>
-                    <TableCell>{user.organization?.name || "N/A"}</TableCell>
+                    <TableCell>{user.organizationName || "N/A"}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{user.role}</Badge>
                     </TableCell>
@@ -121,7 +149,9 @@ export function UsersList() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {user.lastLoginAt || "Never"}
+                      {user.lastLoginAt 
+                        ? formatDistanceToNow(new Date(user.lastLoginAt), { addSuffix: true })
+                        : "Never"}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

@@ -6,6 +6,11 @@ import { requireSuperAdmin } from "@/lib/rbac";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { headers } from "next/headers";
+import { Resend } from "resend";
+import { render } from "@react-email/render";
+import SuperAdminInviteEmail from "@/emails/super-admin-invite-email";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
  * Create a new organization and optionally invite a PM as the primary contact
@@ -331,6 +336,129 @@ export async function listOrganizations(filters?: {
 }
 
 /**
+ * Get single organization with full details
+ */
+export async function getOrganization(organizationId: string) {
+  await requireSuperAdmin();
+
+  try {
+    const org = await db.query.organization.findFirst({
+      where: eq(organization.id, organizationId),
+    });
+
+    if (!org) {
+      return { success: false, error: "Organization not found" };
+    }
+
+    // Get user count
+    const userCount = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(user)
+      .where(eq(user.organizationId, organizationId));
+
+    // Get member list
+    const members = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        lastLoginAt: user.lastLoginAt,
+        isSuspended: user.isSuspended,
+      })
+      .from(user)
+      .where(eq(user.organizationId, organizationId));
+
+    return { 
+      success: true, 
+      organization: org,
+      userCount: userCount[0]?.count || 0,
+      members,
+    };
+  } catch (error) {
+    console.error("Error fetching organization:", error);
+    return { success: false, error: "Failed to fetch organization" };
+  }
+}
+
+/**
+ * Update organization details
+ */
+export async function updateOrganization(organizationId: string, data: {
+  name?: string;
+  industry?: string;
+  size?: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+}) {
+  const superAdmin = await requireSuperAdmin();
+
+  try {
+    await db.update(organization)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(organization.id, organizationId));
+
+    const headersList = await headers();
+    await db.insert(auditLog).values({
+      action: "ORG_UPDATED",
+      performedBy: superAdmin.id,
+      targetType: "ORGANIZATION",
+      targetId: organizationId,
+      metadata: data,
+      ipAddress: headersList.get("x-forwarded-for") || "unknown",
+      userAgent: headersList.get("user-agent") || "unknown",
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating organization:", error);
+    return { success: false, error: "Failed to update organization" };
+  }
+}
+
+/**
+ * Search users across all organizations
+ */
+export async function searchUsers(query: string) {
+  await requireSuperAdmin();
+
+  try {
+    if (!query || query.length < 2) {
+      return { success: true, users: [] };
+    }
+
+    const searchQuery = `%${query.toLowerCase()}%`;
+    
+    const users = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isSuspended: user.isSuspended,
+        lastLoginAt: user.lastLoginAt,
+        organizationId: user.organizationId,
+        organizationName: organization.name,
+      })
+      .from(user)
+      .leftJoin(organization, eq(user.organizationId, organization.id))
+      .where(
+        sql`LOWER(${user.email}) LIKE ${searchQuery} OR LOWER(${user.name}) LIKE ${searchQuery}`
+      )
+      .limit(50);
+
+    return { success: true, users };
+  } catch (error) {
+    console.error("Error searching users:", error);
+    return { success: false, error: "Failed to search users" };
+  }
+}
+
+/**
  * Invite another super admin
  */
 export async function inviteSuperAdmin(email: string) {
@@ -359,8 +487,19 @@ export async function inviteSuperAdmin(email: string) {
       status: "PENDING",
     });
 
-    // TODO: Send invitation email
-    // await sendSuperAdminInvitationEmail(email, token);
+    // Send invitation email
+    const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invite/admin/${token}`;
+    const emailHtml = await render(SuperAdminInviteEmail({
+      inviteLink,
+      inviterName: superAdmin.name || "Admin",
+    }));
+
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+      to: email,
+      subject: "You're invited as a Super Admin on Infradyn",
+      html: emailHtml,
+    });
 
     // Log the action
     const headersList = await headers();

@@ -50,7 +50,7 @@ export const shipmentEventTypeEnum = pgEnum('shipment_event_type', [
 export const organizationStatusEnum = pgEnum('organization_status', ['TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED', 'DELINQUENT']);
 export const organizationPlanEnum = pgEnum('organization_plan', ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']);
 export const auditLogActionEnum = pgEnum('audit_log_action', [
-    'ORG_CREATED', 'ORG_SUSPENDED', 'ORG_ACTIVATED', 'ORG_DELETED', 'ORG_PLAN_CHANGED',
+    'ORG_CREATED', 'ORG_UPDATED', 'ORG_SUSPENDED', 'ORG_ACTIVATED', 'ORG_DELETED', 'ORG_PLAN_CHANGED',
     'USER_IMPERSONATED', 'USER_CREATED', 'USER_SUSPENDED',
     'FEATURE_FLAG_CHANGED', 'SUPER_ADMIN_INVITED', 'SUPER_ADMIN_REMOVED',
     'PM_INVITED', 'PM_REMOVED'

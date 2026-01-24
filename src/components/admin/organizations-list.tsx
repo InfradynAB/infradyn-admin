@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, MoreVertical, Ban, CheckCircle } from "lucide-react";
+import { Search, MoreVertical, Ban, CheckCircle, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { SuspendDialog } from "./suspend-dialog";
 
 type OrganizationType = {
   id: string;
@@ -42,12 +43,18 @@ type OrganizationType = {
   status: string;
   monthlyRevenue: string | null;
   lastActivityAt: Date | null;
-  [key: string]: any; // Allow additional fields from database
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  industry?: string | null;
+  size?: string | null;
+  contactEmail?: string | null;
 };
 
 export function OrganizationsList() {
   const router = useRouter();
   const [organizations, setOrganizations] = useState<OrganizationType[]>([]);
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<OrganizationType | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -99,17 +106,23 @@ export function OrganizationsList() {
     setLoading(false);
   };
 
-  const handleSuspend = async (orgId: string) => {
-    const reason = prompt("Enter suspension reason:");
-    if (!reason) return;
+  const handleSuspend = async (org: OrganizationType) => {
+    setSelectedOrg(org);
+    setSuspendDialogOpen(true);
+  };
 
-    const result = await suspendOrganization(orgId, reason);
+  const handleSuspendConfirm = async (reason: string) => {
+    if (!selectedOrg) return;
+    
+    const result = await suspendOrganization(selectedOrg.id, reason);
     if (result.success) {
       toast.success("Organization suspended successfully");
       loadOrganizations();
     } else {
       toast.error(result.error || "Failed to suspend organization");
     }
+    setSuspendDialogOpen(false);
+    setSelectedOrg(null);
   };
 
   const handleActivate = async (orgId: string) => {
@@ -244,7 +257,12 @@ export function OrganizationsList() {
                         >
                           View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => router.push(`/organizations/${org.id}`)}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {org.status === "SUSPENDED" ? (
                           <DropdownMenuItem
@@ -256,7 +274,7 @@ export function OrganizationsList() {
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuItem
-                            onClick={() => handleSuspend(org.id)}
+                            onClick={() => handleSuspend(org)}
                             className="text-red-600"
                           >
                             <Ban className="mr-2 h-4 w-4" />
@@ -272,6 +290,14 @@ export function OrganizationsList() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Suspend Dialog */}
+      <SuspendDialog
+        open={suspendDialogOpen}
+        onOpenChange={setSuspendDialogOpen}
+        onConfirm={handleSuspendConfirm}
+        organizationName={selectedOrg?.name || ""}
+      />
     </div>
   );
 }
