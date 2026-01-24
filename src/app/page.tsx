@@ -17,7 +17,13 @@ export default async function HomePage() {
     redirect("/sign-in");
   }
 
-  const userName = session.user.name?.split(" ")[0] || "Admin";
+  // Check for SUPER_ADMIN role
+  const user = session.user as { role?: string; name?: string };
+  if (user.role !== 'SUPER_ADMIN') {
+    redirect("/sign-in?error=access_denied");
+  }
+
+  const userName = user.name?.split(" ")[0] || "Admin";
 
   // User is logged in - show dashboard directly
   return (

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth } from './auth';
+
+// Simple session cookie check for Edge Runtime
+// Full session validation happens in API routes/server components
+const SESSION_COOKIE_NAME = 'better-auth.session_token';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,25 +14,23 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/sign-in') ||
     pathname.startsWith('/sign-up') ||
     pathname.startsWith('/invite') ||
-    pathname.startsWith('/api/auth')
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/verify-email') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname === '/sitemap.xml' ||
+    pathname === '/robots.txt'
   ) {
     return NextResponse.next();
   }
 
-  // Get session
-  const session = await auth.api.getSession({
-    headers: request.headers
-  });
+  // Check for session cookie existence (basic auth gate)
+  // Full validation happens server-side
+  const sessionToken = request.cookies.get(SESSION_COOKIE_NAME);
 
-  // No session - go to login
-  if (!session?.user) {
+  if (!sessionToken?.value) {
     return NextResponse.redirect(new URL('/sign-in', request.url));
-  }
-
-  // Check role
-  const user = session.user as { role?: string };
-  if (user.role !== 'SUPER_ADMIN') {
-    return NextResponse.redirect(new URL('/sign-in?error=access_denied', request.url));
   }
 
   return NextResponse.next();
