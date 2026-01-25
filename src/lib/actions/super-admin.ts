@@ -31,6 +31,15 @@ export async function createOrganization(data: {
   const superAdmin = await requireSuperAdmin();
   
   try {
+    // Check if slug already exists
+    const existingOrg = await db.query.organization.findFirst({
+      where: eq(organization.slug, data.slug),
+    });
+
+    if (existingOrg) {
+      return { success: false, error: `An organization with slug "${data.slug}" already exists. Please choose a different name.` };
+    }
+
     // Create organization
     const [newOrg] = await db.insert(organization).values({
       name: data.name,
