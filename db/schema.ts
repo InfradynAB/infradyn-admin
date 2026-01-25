@@ -105,6 +105,43 @@ export const invitation = pgTable('invitation', {
     supplierId: uuid('supplier_id').references(() => supplier.id),
 });
 
+// Super Admin Invitation Table (for inviting other super admins)
+export const superAdminInvitation = pgTable('super_admin_invitation', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    email: text('email').notNull(),
+    token: text('token').notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    status: text('status').default('PENDING').notNull(), // PENDING, ACCEPTED, EXPIRED
+    invitedBy: text('invited_by').references(() => user.id),
+    acceptedUserId: text('accepted_user_id').references(() => user.id),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+    acceptedAt: timestamp('accepted_at'),
+});
+
+// Feature Flags Table (for admin dashboard feature control)
+export const featureFlag = pgTable('feature_flag', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull(),
+    key: text('key').notNull().unique(),
+    description: text('description'),
+    isEnabled: boolean('is_enabled').default(false).notNull(),
+    enabledOrgs: jsonb('enabled_orgs').$type<string[]>(), // Array of org IDs where this flag is enabled
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+// Impersonation Token Table (for super admin user impersonation)
+export const impersonationToken = pgTable('impersonation_token', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    adminId: text('admin_id').references(() => user.id).notNull(),
+    targetUserId: text('target_user_id').references(() => user.id).notNull(),
+    token: text('token').notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    usedAt: timestamp('used_at'),
+});
+
 // Merged User Table (Better Auth + App Fields)
 export const user = pgTable('user', {
     // Better Auth Fields
@@ -123,6 +160,8 @@ export const user = pgTable('user', {
     // Phase 3B: Link user to supplier
     supplierId: uuid('supplier_id'),
 
+    // Admin tracking
+    lastLoginAt: timestamp('last_login_at'),
 
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -911,12 +950,14 @@ export const syncQueue = pgTable('sync_queue', {
 
 export const auditLog = pgTable('audit_log', {
     ...baseColumns,
-    userId: text('user_id').references(() => user.id),
+    performedBy: text('performed_by').references(() => user.id),
     action: text('action').notNull(),
-    entityType: text('entity_type').notNull(),
-    entityId: uuid('entity_id').notNull(),
-    metadata: text('metadata'), // JSON
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    targetName: text('target_name'),
+    metadata: jsonb('metadata'),
     ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
 });
 
 export const notification = pgTable('notification', {
@@ -1198,7 +1239,7 @@ export const syncQueueRelations = relations(syncQueue, ({ one }) => ({
 }));
 
 export const auditLogRelations = relations(auditLog, ({ one }) => ({
-    user: one(user, { fields: [auditLog.userId], references: [user.id] }),
+    user: one(user, { fields: [auditLog.performedBy], references: [user.id] }),
 }));
 
 export const integrationKeyRelations = relations(integrationKey, ({ one }) => ({
