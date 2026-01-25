@@ -14,7 +14,7 @@ interface AuditLogEntry {
     targetName: string | null;
     metadata: unknown;
     createdAt: Date;
-    performedBy: string;
+    performedBy: string | null;
     userName?: string | null;
 }
 

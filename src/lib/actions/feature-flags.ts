@@ -95,18 +95,17 @@ export async function setFeatureFlagForOrgs(
       return { success: false, error: "Feature flag not found" };
     }
 
-    const updates: any = {};
+    const currentEnabled = flag.enabledOrgs || [];
+    let newEnabledOrgs: string[];
 
     if (action === "enable") {
-      const currentEnabled = flag.enabledForOrgs || [];
-      updates.enabledForOrgs = [...new Set([...currentEnabled, ...orgIds])];
+      newEnabledOrgs = [...new Set([...currentEnabled, ...orgIds])];
     } else {
-      const currentDisabled = flag.disabledForOrgs || [];
-      updates.disabledForOrgs = [...new Set([...currentDisabled, ...orgIds])];
+      newEnabledOrgs = currentEnabled.filter(id => !orgIds.includes(id));
     }
 
     await db.update(featureFlag)
-      .set(updates)
+      .set({ enabledOrgs: newEnabledOrgs })
       .where(eq(featureFlag.id, flagId));
 
     // Log the action
@@ -166,12 +165,9 @@ export async function isFeatureEnabled(
 
     // Check org-specific overrides
     if (orgId) {
-      // If explicitly disabled for this org
-      if (flag.disabledForOrgs?.includes(orgId)) return false;
-
-      // If whitelist exists and org is not in it
-      if (flag.enabledForOrgs && flag.enabledForOrgs.length > 0) {
-        if (!flag.enabledForOrgs.includes(orgId)) return false;
+      // If enabledOrgs list exists and is not empty, org must be in it
+      if (flag.enabledOrgs && flag.enabledOrgs.length > 0) {
+        return flag.enabledOrgs.includes(orgId);
       }
     }
 
@@ -209,7 +205,7 @@ export async function generateImpersonationToken(targetUserId: string) {
 
     await db.insert(impersonationToken).values({
       token,
-      superAdminId: superAdmin.id,
+      adminId: superAdmin.id,
       targetUserId,
       expiresAt,
     });

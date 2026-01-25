@@ -77,6 +77,10 @@ export const organization = pgTable('organization', {
     monthlyRevenue: numeric('monthly_revenue'),
     lastActivityAt: timestamp('last_activity_at'),
     createdBy: text('created_by'), // Super Admin who created this org
+    // Suspension fields
+    suspendedAt: timestamp('suspended_at'),
+    suspendedBy: text('suspended_by'),
+    suspensionReason: text('suspension_reason'),
 });
 
 export const member = pgTable('member', {
@@ -168,6 +172,9 @@ export const user = pgTable('user', {
 
     // Admin tracking
     lastLoginAt: timestamp('last_login_at'),
+    isSuspended: boolean('is_suspended').default(false),
+    suspendedAt: timestamp('suspended_at'),
+    suspendedBy: text('suspended_by'),
 
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),

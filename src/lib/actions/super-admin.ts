@@ -422,7 +422,7 @@ export async function getRecentActivity(limit: number = 50) {
       orderBy: [desc(auditLog.createdAt)],
       limit,
       with: {
-        performer: {
+        user: {
           columns: {
             id: true,
             name: true,
@@ -715,6 +715,7 @@ export async function inviteSuperAdmin(email: string) {
       action: "SUPER_ADMIN_INVITED",
       performedBy: superAdmin.id,
       targetType: "USER",
+      targetId: email, // Use email as targetId since user doesn't exist yet
       targetName: email,
       metadata: { email },
       ipAddress: headersList.get("x-forwarded-for") || "unknown",
