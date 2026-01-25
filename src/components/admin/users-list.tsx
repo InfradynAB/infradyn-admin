@@ -23,11 +23,12 @@ interface SearchUser {
   id: string;
   email: string;
   name: string;
-  role: "SUPER_ADMIN" | "PM" | "SUPPLIER" | "QA" | "SITE_RECEIVER";
+  role: "SUPER_ADMIN" | "ADMIN" | "PM" | "SUPPLIER" | "QA" | "SITE_RECEIVER";
   organizationName: string | null;
   organizationId: string | null;
   lastLoginAt: Date | null;
   isSuspended: boolean | null;
+  createdAt: Date;
 }
 
 export function UsersList() {
