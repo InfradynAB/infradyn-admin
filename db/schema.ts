@@ -2,7 +2,7 @@ import { pgTable, uuid, text, timestamp, boolean, integer, numeric, pgEnum, uniq
 import { relations, sql } from 'drizzle-orm';
 
 // --- ENUMS ---
-export const userRoleEnum = pgEnum('user_role', ['SUPER_ADMIN', 'PM', 'SUPPLIER', 'QA', 'SITE_RECEIVER']);
+export const userRoleEnum = pgEnum('user_role', ['SUPER_ADMIN', 'ADMIN', 'PM', 'SUPPLIER', 'QA', 'SITE_RECEIVER']);
 export const parentTypeEnum = pgEnum('parent_type', ['PO', 'BOQ', 'INVOICE', 'PACKING_LIST', 'CMR', 'NCR', 'EVIDENCE']);
 export const progressSourceEnum = pgEnum('progress_source', ['SRP', 'IRP', 'FORECAST']);
 export const conflictTypeEnum = pgEnum('conflict_type', ['QUANTITY_MISMATCH', 'PROGRESS_MISMATCH', 'DATE_VARIANCE', 'EVIDENCE_FAILURE', 'NCR_CONFLICT']);
@@ -46,16 +46,6 @@ export const shipmentEventTypeEnum = pgEnum('shipment_event_type', [
     'ETA_UPDATE', 'LOCATION_SCAN', 'OTHER'
 ]);
 
-// Phase 8: Super Admin Dashboard Enums
-export const organizationStatusEnum = pgEnum('organization_status', ['TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED', 'DELINQUENT']);
-export const organizationPlanEnum = pgEnum('organization_plan', ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']);
-export const auditLogActionEnum = pgEnum('audit_log_action', [
-    'ORG_CREATED', 'ORG_UPDATED', 'ORG_SUSPENDED', 'ORG_ACTIVATED', 'ORG_DELETED', 'ORG_PLAN_CHANGED',
-    'USER_IMPERSONATED', 'USER_CREATED', 'USER_SUSPENDED',
-    'FEATURE_FLAG_CHANGED', 'SUPER_ADMIN_INVITED', 'SUPER_ADMIN_REMOVED',
-    'PM_INVITED', 'PM_REMOVED'
-]);
-
 
 // --- SHARED COLUMNS ---
 const baseColumns = {
@@ -81,15 +71,6 @@ export const organization = pgTable('organization', {
     description: text('description'),
     phone: text('phone'),
     website: text('website'),
-    // Phase 8: Super Admin Management
-    status: organizationStatusEnum('status').default('TRIAL').notNull(),
-    plan: organizationPlanEnum('plan').default('STARTER').notNull(),
-    monthlyRevenue: numeric('monthly_revenue').default('0'),
-    lastActivityAt: timestamp('last_activity_at').defaultNow(),
-    suspendedAt: timestamp('suspended_at'),
-    suspendedBy: text('suspended_by'), // Foreign key to user.id
-    suspensionReason: text('suspension_reason'),
-    createdBy: text('created_by'), // Foreign key to user.id (Super Admin who created this org)
 });
 
 export const member = pgTable('member', {
@@ -135,17 +116,12 @@ export const user = pgTable('user', {
     twoFactorEnabled: boolean("two_factor_enabled").default(false),
 
     // App Specific Fields
-    organizationId: uuid('organization_id').references(() => organization.id), // Nullable for SUPER_ADMIN
+    organizationId: uuid('organization_id').references(() => organization.id), // Nullable initially or handle via onboarding
     passwordHash: text('password_hash'),
     phone: text('phone'),
     role: userRoleEnum('role').default('PM').notNull(),
     // Phase 3B: Link user to supplier
     supplierId: uuid('supplier_id'),
-    // Phase 8: Super Admin tracking
-    isSuspended: boolean('is_suspended').default(false),
-    suspendedAt: timestamp('suspended_at'),
-    suspendedBy: text('suspended_by'), // Foreign key to user.id
-    lastLoginAt: timestamp('last_login_at'),
 
 
     // Timestamps
@@ -933,6 +909,16 @@ export const syncQueue = pgTable('sync_queue', {
 
 // --- 12. AUDIT, LOGS & SYSTEM ---
 
+export const auditLog = pgTable('audit_log', {
+    ...baseColumns,
+    userId: text('user_id').references(() => user.id),
+    action: text('action').notNull(),
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    metadata: text('metadata'), // JSON
+    ipAddress: text('ip_address'),
+});
+
 export const notification = pgTable('notification', {
     ...baseColumns,
     userId: text('user_id').references(() => user.id),
@@ -1211,6 +1197,10 @@ export const syncQueueRelations = relations(syncQueue, ({ one }) => ({
     deviceSession: one(deviceSession, { fields: [syncQueue.deviceSessionId], references: [deviceSession.id] }),
 }));
 
+export const auditLogRelations = relations(auditLog, ({ one }) => ({
+    user: one(user, { fields: [auditLog.userId], references: [user.id] }),
+}));
+
 export const integrationKeyRelations = relations(integrationKey, ({ one }) => ({
     project: one(project, { fields: [integrationKey.projectId], references: [project.id] }),
 }));
@@ -1343,122 +1333,4 @@ export const ncrAttachmentRelations = relations(ncrAttachment, ({ one }) => ({
 export const ncrMagicLinkRelations = relations(ncrMagicLink, ({ one }) => ({
     ncr: one(ncr, { fields: [ncrMagicLink.ncrId], references: [ncr.id] }),
     supplier: one(supplier, { fields: [ncrMagicLink.supplierId], references: [supplier.id] }),
-}));
-
-// --- PHASE 8: SUPER ADMIN DASHBOARD TABLES ---
-
-// Feature Flags - Control platform features globally or per-org
-export const featureFlag = pgTable('feature_flag', {
-    ...baseColumns,
-    name: text('name').notNull(),
-    key: text('key').notNull().unique(), // e.g., 'ENABLE_AI_PARSING'
-    description: text('description'),
-    isEnabled: boolean('is_enabled').default(false).notNull(),
-    enabledForOrgs: jsonb('enabled_for_orgs').$type<string[]>(), // Specific org IDs
-    disabledForOrgs: jsonb('disabled_for_orgs').$type<string[]>(), // Blacklist specific orgs
-    metadata: jsonb('metadata'), // Additional configuration data
-}, (t) => ({
-    keyIdx: uniqueIndex('feature_flag_key_idx').on(t.key),
-}));
-
-// Audit Log - Track all super admin actions
-export const auditLog = pgTable('audit_log', {
-    ...baseColumns,
-    action: auditLogActionEnum('action').notNull(),
-    performedBy: text('performed_by').references(() => user.id).notNull(),
-    targetType: text('target_type'), // 'USER', 'ORGANIZATION', 'FEATURE_FLAG', 'PROJECT'
-    targetId: text('target_id'),
-    targetName: text('target_name'), // For display purposes
-    metadata: jsonb('metadata'), // Full context of the action
-    ipAddress: text('ip_address'),
-    userAgent: text('user_agent'),
-}, (t) => ({
-    performedByIdx: index('audit_log_performed_by_idx').on(t.performedBy),
-    createdAtIdx: index('audit_log_created_at_idx').on(t.createdAt),
-    actionIdx: index('audit_log_action_idx').on(t.action),
-}));
-
-// System Metrics - Store platform-wide KPIs for dashboard
-export const systemMetric = pgTable('system_metric', {
-    ...baseColumns,
-    metricName: text('metric_name').notNull(), // 'total_revenue', 'active_orgs', 'api_latency'
-    value: numeric('value').notNull(),
-    timestamp: timestamp('timestamp').defaultNow().notNull(),
-    metadata: jsonb('metadata'), // Additional context
-}, (t) => ({
-    metricTimeIdx: index('system_metric_time_idx').on(t.metricName, t.timestamp),
-}));
-
-// Impersonation Tokens - For user debugging/support
-export const impersonationToken = pgTable('impersonation_token', {
-    ...baseColumns,
-    token: text('token').notNull().unique(),
-    superAdminId: text('super_admin_id').references(() => user.id).notNull(),
-    targetUserId: text('target_user_id').references(() => user.id).notNull(),
-    expiresAt: timestamp('expires_at').notNull(),
-    usedAt: timestamp('used_at'),
-    ipAddress: text('ip_address'),
-    userAgent: text('user_agent'),
-}, (t) => ({
-    tokenIdx: uniqueIndex('impersonation_token_idx').on(t.token),
-    expiresIdx: index('impersonation_token_expires_idx').on(t.expiresAt),
-}));
-
-// Super Admin Invitations - Invite other Infradyn staff
-export const superAdminInvitation = pgTable('super_admin_invitation', {
-    ...baseColumns,
-    email: text('email').notNull(),
-    token: text('token').notNull().unique(),
-    invitedBy: text('invited_by').references(() => user.id).notNull(),
-    expiresAt: timestamp('expires_at').notNull(),
-    status: text('status').default('PENDING').notNull(), // PENDING, ACCEPTED, EXPIRED
-    acceptedAt: timestamp('accepted_at'),
-    acceptedUserId: text('accepted_user_id').references(() => user.id),
-}, (t) => ({
-    tokenIdx: uniqueIndex('super_admin_invitation_token_idx').on(t.token),
-    emailIdx: index('super_admin_invitation_email_idx').on(t.email),
-}));
-
-// --- PHASE 8: SUPER ADMIN RELATIONS ---
-
-export const featureFlagRelations = relations(featureFlag, ({ one }) => ({
-    createdByUser: one(user, {
-        fields: [featureFlag.createdAt],
-        references: [user.id],
-        relationName: "featureFlagCreator",
-    }),
-}));
-
-export const auditLogRelations = relations(auditLog, ({ one }) => ({
-    performer: one(user, {
-        fields: [auditLog.performedBy],
-        references: [user.id],
-        relationName: "auditLogPerformer",
-    }),
-}));
-
-export const impersonationTokenRelations = relations(impersonationToken, ({ one }) => ({
-    superAdmin: one(user, {
-        fields: [impersonationToken.superAdminId],
-        references: [user.id],
-        relationName: "impersonationSuperAdmin",
-    }),
-    targetUser: one(user, {
-        fields: [impersonationToken.targetUserId],
-        references: [user.id],
-        relationName: "impersonationTarget",
-    }),
-}));
-
-export const superAdminInvitationRelations = relations(superAdminInvitation, ({ one }) => ({
-    inviter: one(user, {
-        fields: [superAdminInvitation.invitedBy],
-        references: [user.id],
-        relationName: "superAdminInviter",
-    }),
-    acceptedUser: one(user, {
-        fields: [superAdminInvitation.acceptedUserId],
-        references: [user.id],
-        relationName: "superAdminAcceptedUser",
-    }),
 }));
