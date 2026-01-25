@@ -71,6 +71,12 @@ export const organization = pgTable('organization', {
     description: text('description'),
     phone: text('phone'),
     website: text('website'),
+    // Plan & Status
+    plan: text('plan').default('FREE').notNull(), // FREE, STARTER, PROFESSIONAL, ENTERPRISE
+    status: text('status').default('TRIAL').notNull(), // TRIAL, ACTIVE, SUSPENDED, CANCELLED
+    monthlyRevenue: numeric('monthly_revenue'),
+    lastActivityAt: timestamp('last_activity_at'),
+    createdBy: text('created_by'), // Super Admin who created this org
 });
 
 export const member = pgTable('member', {
@@ -1076,6 +1082,11 @@ export const sessionRelations = relations(session, ({ one }) => ({
 
 export const accountRelations = relations(account, ({ one }) => ({
     user: one(user, { fields: [account.userId], references: [user.id] }),
+}));
+
+export const superAdminInvitationRelations = relations(superAdminInvitation, ({ one }) => ({
+    inviter: one(user, { fields: [superAdminInvitation.invitedBy], references: [user.id] }),
+    acceptedUser: one(user, { fields: [superAdminInvitation.acceptedUserId], references: [user.id] }),
 }));
 
 export const supplierRelations = relations(supplier, ({ one, many }) => ({
