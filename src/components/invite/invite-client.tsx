@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { acceptInvitation } from "@/lib/actions/invitation";
 import Link from "next/link";
 import { CheckCircle, CircleNotch, Warning, Sparkle, ArrowRight, SignOut } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -30,20 +28,29 @@ export function InviteClient({
     currentUserEmail
 }: InviteClientProps) {
     const [isPending, startTransition] = useTransition();
-    const router = useRouter();
     const [isLoggedIn, setIsLoggedIn] = useState(initialIsLoggedIn);
     const [isSigningOut, setIsSigningOut] = useState(false);
 
     const handleAccept = () => {
         startTransition(async () => {
             try {
-                const result = await acceptInvitation(token);
+                // Use API route instead of server action for better cookie handling
+                const res = await fetch("/api/auth/accept-invitation", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token }),
+                    credentials: "include",
+                });
+                
+                const result = await res.json();
+                
                 if (result.success) {
                     toast.success("Welcome aboard! Redirecting to your workspace...");
+                    // Use window.location.assign for full page reload to ensure session is recognized
                     if (result.role === "SUPPLIER") {
-                        router.push("/dashboard/supplier/onboarding");
+                        window.location.assign("/dashboard/supplier/onboarding");
                     } else {
-                        router.push("/dashboard");
+                        window.location.assign("/");
                     }
                 } else {
                     toast.error(result.error || "Failed to accept invitation.");
@@ -52,13 +59,6 @@ export function InviteClient({
                 toast.error("Something went wrong. Please try again.");
             }
         });
-    };
-
-    // Callback when auth succeeds in the inline form
-    const onAuthSuccess = () => {
-        setIsLoggedIn(true);
-        // Automatically try to accept the invite
-        handleAccept();
     };
 
     const handleSignOut = async () => {
@@ -141,7 +141,7 @@ export function InviteClient({
                 )}
 
                 {!isLoggedIn ? (
-                    <InviteAuthForm email={inviteEmail} token={token} onSuccess={onAuthSuccess} />
+                    <InviteAuthForm email={inviteEmail} token={token} />
                 ) : !emailMismatch && (
                     <div className="space-y-4">
                         <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border">

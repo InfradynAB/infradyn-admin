@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,12 +19,11 @@ import { toast } from "sonner";
 import { CircleNotch, Eye, EyeSlash, ArrowRight, User, Lock, CheckCircle } from "@phosphor-icons/react";
 import { PasswordStrengthIndicator } from "@/components/ui/password-strength";
 import { cn } from "@/lib/utils";
-import { acceptInvitation } from "@/lib/actions/invitation";
 
 interface InviteAuthFormProps {
     email: string;
     token: string;
-    onSuccess: () => void;
+    onSuccess?: () => void;
 }
 
 const signUpSchema = z.object({
@@ -41,8 +39,7 @@ const signInSchema = z.object({
     password: z.string().min(1, "Password is required"),
 });
 
-export function InviteAuthForm({ email, token, onSuccess }: InviteAuthFormProps) {
-    const router = useRouter();
+export function InviteAuthForm({ email, token }: InviteAuthFormProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [mode, setMode] = useState<"signup" | "signin">("signup");
     const [statusMessage, setStatusMessage] = useState("");
@@ -70,14 +67,17 @@ export function InviteAuthForm({ email, token, onSuccess }: InviteAuthFormProps)
         // Small delay to ensure session cookie is set
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Refresh to get new session
-        router.refresh();
-        
-        // Another small delay after refresh
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
         try {
-            const result = await acceptInvitation(token);
+            // Accept invitation via API route instead of server action for better cookie handling
+            const res = await fetch("/api/auth/accept-invitation", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token }),
+                credentials: "include", // Ensure cookies are sent
+            });
+            
+            const result = await res.json();
+            
             if (result.success) {
                 toast.success("Welcome! Redirecting to your dashboard...");
                 // Use window.location.assign for a full page reload to ensure session is recognized

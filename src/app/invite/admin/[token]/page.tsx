@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,7 +20,6 @@ interface InviteData {
 }
 
 export default function SuperAdminInvitePage({ params }: { params: Promise<{ token: string }> }) {
-    const router = useRouter();
     const [token, setToken] = useState<string>("");
     const [inviteData, setInviteData] = useState<InviteData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -82,11 +80,12 @@ export default function SuperAdminInvitePage({ params }: { params: Promise<{ tok
                     {
                         onSuccess: () => {
                             toast.success("Welcome to the admin dashboard!");
-                            router.push("/");
+                            // Use window.location.assign for full page reload to ensure session cookie is synced
+                            window.location.assign("/");
                         },
                         onError: () => {
                             // If auto sign-in fails, redirect to sign-in page
-                            router.push("/sign-in");
+                            window.location.assign("/sign-in");
                         },
                     }
                 );
@@ -124,7 +123,8 @@ export default function SuperAdminInvitePage({ params }: { params: Promise<{ tok
                     
                     if (result.success) {
                         toast.success("Welcome to the admin dashboard!");
-                        router.push("/");
+                        // Use window.location.assign for full page reload to ensure session cookie is synced
+                        window.location.assign("/");
                     } else {
                         toast.error(result.error || "Failed to accept invitation");
                     }
@@ -165,7 +165,7 @@ export default function SuperAdminInvitePage({ params }: { params: Promise<{ tok
                         <Button 
                             variant="secondary" 
                             className="h-12 px-8 rounded-xl font-semibold"
-                            onClick={() => router.push("/sign-in")}
+                            onClick={() => window.location.assign("/sign-in")}
                         >
                             Go to Sign In
                         </Button>
