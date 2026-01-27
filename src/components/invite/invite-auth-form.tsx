@@ -67,10 +67,25 @@ export function InviteAuthForm({ email, onSuccess }: InviteAuthFormProps) {
                 name: values.name,
             },
             {
-                onSuccess: () => {
-                    toast.success("Account created successfully!");
-                    onSuccess();
-                    setIsLoading(false);
+                onSuccess: async () => {
+                    // After signup, automatically sign in the user
+                    await authClient.signIn.email(
+                        {
+                            email: email,
+                            password: values.password,
+                        },
+                        {
+                            onSuccess: () => {
+                                toast.success("Account created! Joining workspace...");
+                                onSuccess();
+                                setIsLoading(false);
+                            },
+                            onError: (ctx) => {
+                                toast.error(ctx.error.message || "Account created but failed to sign in");
+                                setIsLoading(false);
+                            },
+                        }
+                    );
                 },
                 onError: (ctx) => {
                     toast.error(ctx.error.message || "Failed to create account");
