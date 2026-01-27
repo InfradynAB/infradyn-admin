@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -13,11 +14,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, User as UserIcon, Copy, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { 
+  MagnifyingGlass, 
+  Export, 
+  DotsThreeVertical, 
+  Copy, 
+  UserCircle, 
+  Prohibit,
+  ArrowsDownUp,
+  CaretDown,
+  Users,
+  CheckCircle,
+  Warning
+} from "@phosphor-icons/react";
 import { searchUsers } from "@/lib/actions/super-admin";
 import { generateImpersonationToken } from "@/lib/actions/feature-flags";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface SearchUser {
   id: string;
@@ -31,10 +52,71 @@ interface SearchUser {
   createdAt: Date;
 }
 
+// Generate consistent color based on name
+function getAvatarColor(name: string): string {
+  const colors = [
+    "bg-blue-500",
+    "bg-green-500",
+    "bg-purple-500",
+    "bg-orange-500",
+    "bg-pink-500",
+    "bg-cyan-500",
+    "bg-indigo-500",
+    "bg-teal-500",
+    "bg-rose-500",
+    "bg-amber-500",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function getRoleBadgeStyle(role: string) {
+  switch (role) {
+    case "SUPER_ADMIN":
+      return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+    case "ADMIN":
+      return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400";
+    case "PM":
+      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+    case "SUPPLIER":
+      return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400";
+    case "QA":
+      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+    default:
+      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400";
+  }
+}
+
+function formatRoleName(role: string): string {
+  const roleNames: Record<string, string> = {
+    SUPER_ADMIN: "Super Admin",
+    ADMIN: "Admin",
+    PM: "Project Manager",
+    SUPPLIER: "Supplier",
+    QA: "QA Inspector",
+    SITE_RECEIVER: "Site Receiver",
+  };
+  return roleNames[role] || role;
+}
+
 export function UsersList() {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortField, setSortField] = useState<"name" | "createdAt">("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Load all users on mount
   useEffect(() => {
@@ -49,16 +131,28 @@ export function UsersList() {
     loadUsers();
   }, []);
 
-  const handleSearch = async () => {
-    setLoading(true);
-    const result = await searchUsers(search);
-    if (result.success) {
-      setUsers(result.users || []);
+  // Filter users based on search
+  const filteredUsers = users.filter((user) => {
+    const searchLower = search.toLowerCase();
+    return (
+      user.name.toLowerCase().includes(searchLower) ||
+      user.email.toLowerCase().includes(searchLower) ||
+      (user.organizationName?.toLowerCase().includes(searchLower) ?? false)
+    );
+  });
+
+  // Sort users
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    if (sortField === "name") {
+      return sortOrder === "asc"
+        ? a.name.localeCompare(b.name)
+        : b.name.localeCompare(a.name);
     } else {
-      toast.error(result.error || "Failed to search users");
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
     }
-    setLoading(false);
-  };
+  });
 
   const handleImpersonate = async (userId: string) => {
     const result = await generateImpersonationToken(userId);
@@ -73,100 +167,255 @@ export function UsersList() {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      {/* Search */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by email, name, or organization..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                className="pl-9"
-              />
-            </div>
-            <Button
-              onClick={handleSearch}
-              className="bg-[#0F6157] hover:bg-[#0d5048]"
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+  const handleExport = () => {
+    const csvContent = [
+      ["Name", "Email", "Organization", "Role", "Status", "Created At"].join(","),
+      ...sortedUsers.map((user) =>
+        [
+          user.name,
+          user.email,
+          user.organizationName || "N/A",
+          user.role,
+          user.isSuspended ? "Suspended" : "Active",
+          format(new Date(user.createdAt), "yyyy-MM-dd"),
+        ].join(",")
+      ),
+    ].join("\n");
 
-      {/* Results */}
-      <Card>
-        {loading ? (
-          <CardContent className="py-12 text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Loading users...</p>
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `users-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success("Users exported successfully!");
+  };
+
+  const toggleSort = (field: "name" | "createdAt") => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const activeCount = users.filter((u) => !u.isSuspended).length;
+  const suspendedCount = users.filter((u) => u.isSuspended).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+                <p className="text-2xl font-bold">{users.length}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary" weight="duotone" />
+              </div>
+            </div>
           </CardContent>
-        ) : users.length === 0 ? (
-          <CardContent className="py-12 text-center">
-            <UserIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
-              {search ? `No users found matching "${search}"` : "No users found"}
-            </p>
+        </Card>
+        <Card className="border-l-4 border-l-green-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Active</p>
+                <p className="text-2xl font-bold text-green-600">{activeCount}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-green-500" weight="duotone" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Suspended</p>
+                <p className="text-2xl font-bold text-amber-600">{suspendedCount}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                <Warning className="h-5 w-5 text-amber-500" weight="duotone" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search members by name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-10"
+          />
+        </div>
+        <Button variant="outline" onClick={handleExport} className="gap-2">
+          <Export className="h-4 w-4" />
+          Export
+        </Button>
+      </div>
+
+      {/* Success message for filtered results */}
+      {search && filteredUsers.length > 0 && (
+        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-lg">
+          <CheckCircle className="h-4 w-4" weight="fill" />
+          {filteredUsers.length} user(s) found matching &quot;{search}&quot;
+        </div>
+      )}
+
+      {/* Table */}
+      <Card className="overflow-hidden">
+        {loading ? (
+          <CardContent className="py-16 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 bg-muted rounded animate-pulse mx-auto" />
+                <div className="h-3 w-24 bg-muted rounded animate-pulse mx-auto" />
+              </div>
+            </div>
+          </CardContent>
+        ) : sortedUsers.length === 0 ? (
+          <CardContent className="py-16 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center">
+                <UserCircle className="h-8 w-8 text-muted-foreground" weight="duotone" />
+              </div>
+              <div>
+                <p className="font-medium">No users found</p>
+                <p className="text-sm text-muted-foreground">
+                  {search ? `No results for "${search}"` : "No users in the system yet"}
+                </p>
+              </div>
+            </div>
           </CardContent>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Organization</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Login</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{user.organizationName || "N/A"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{user.role}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={user.isSuspended ? "destructive" : "default"}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="font-semibold">
+                    <button
+                      onClick={() => toggleSort("name")}
+                      className="flex items-center gap-1 hover:text-foreground transition-colors"
                     >
-                      {user.isSuspended ? "Suspended" : "Active"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.lastLoginAt 
-                      ? formatDistanceToNow(new Date(user.lastLoginAt), { addSuffix: true })
-                      : "Never"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleImpersonate(user.id)}
+                      Name
+                      <ArrowsDownUp className="h-3.5 w-3.5" />
+                    </button>
+                  </TableHead>
+                  <TableHead className="font-semibold">Email</TableHead>
+                  <TableHead className="font-semibold">Organization</TableHead>
+                  <TableHead className="font-semibold">Role</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="font-semibold">
+                    <button
+                      onClick={() => toggleSort("createdAt")}
+                      className="flex items-center gap-1 hover:text-foreground transition-colors"
                     >
-                      <Copy className="mr-2 h-4 w-4" />
-                      Impersonate
-                    </Button>
-                  </TableCell>
+                      Added on
+                      <CaretDown className={cn(
+                        "h-3.5 w-3.5 transition-transform",
+                        sortField === "createdAt" && sortOrder === "asc" && "rotate-180"
+                      )} />
+                    </button>
+                  </TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {sortedUsers.map((user) => (
+                  <TableRow key={user.id} className="group">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className={cn("h-9 w-9", getAvatarColor(user.name))}>
+                          <AvatarFallback className="text-white text-xs font-semibold bg-transparent">
+                            {getInitials(user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{user.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {user.email}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">
+                        {user.organizationName || "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="secondary" 
+                        className={cn("font-medium", getRoleBadgeStyle(user.role))}
+                      >
+                        {formatRoleName(user.role)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.isSuspended ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          <span className="text-amber-600 dark:text-amber-400 text-sm">Suspended</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-green-500" />
+                          <span className="text-green-600 dark:text-green-400 text-sm">Active</span>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format(new Date(user.createdAt), "dd/MM/yyyy")}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <DotsThreeVertical className="h-4 w-4" weight="bold" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => handleImpersonate(user.id)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy Impersonate Link
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <Prohibit className="mr-2 h-4 w-4" />
+                            {user.isSuspended ? "Unsuspend User" : "Suspend User"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </Card>
+
+      {/* Footer info */}
+      {sortedUsers.length > 0 && (
+        <div className="text-sm text-muted-foreground text-center">
+          Showing {sortedUsers.length} of {users.length} users
+        </div>
+      )}
     </div>
   );
 }
