@@ -85,17 +85,19 @@ function getInitials(name: string): string {
 function getRoleBadgeStyle(role: string) {
   switch (role) {
     case "SUPER_ADMIN":
-      return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+      return "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 border border-violet-200 dark:border-violet-800";
     case "ADMIN":
-      return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400";
+      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800";
     case "PM":
-      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+      return "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 border border-sky-200 dark:border-sky-800";
     case "SUPPLIER":
-      return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400";
+      return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800";
     case "QA":
-      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800";
+    case "SITE_RECEIVER":
+      return "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-200 dark:border-teal-800";
     default:
-      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400";
+      return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700";
   }
 }
 
@@ -109,6 +111,60 @@ function formatRoleName(role: string): string {
     SITE_RECEIVER: "Site Receiver",
   };
   return roleNames[role] || role;
+}
+
+function getAccessLevelInfo(role: string): { level: string; description: string; color: string; bgColor: string } {
+  switch (role) {
+    case "SUPER_ADMIN":
+      return { 
+        level: "Full Access", 
+        description: "System-wide control",
+        color: "text-violet-700 dark:text-violet-400",
+        bgColor: "bg-violet-50 dark:bg-violet-900/20"
+      };
+    case "ADMIN":
+      return { 
+        level: "Admin Access", 
+        description: "Organization admin",
+        color: "text-indigo-700 dark:text-indigo-400",
+        bgColor: "bg-indigo-50 dark:bg-indigo-900/20"
+      };
+    case "PM":
+      return { 
+        level: "Manager Access", 
+        description: "Project management",
+        color: "text-sky-700 dark:text-sky-400",
+        bgColor: "bg-sky-50 dark:bg-sky-900/20"
+      };
+    case "SUPPLIER":
+      return { 
+        level: "Vendor Access", 
+        description: "Supply chain ops",
+        color: "text-amber-700 dark:text-amber-400",
+        bgColor: "bg-amber-50 dark:bg-amber-900/20"
+      };
+    case "QA":
+      return { 
+        level: "Inspector Access", 
+        description: "Quality control",
+        color: "text-emerald-700 dark:text-emerald-400",
+        bgColor: "bg-emerald-50 dark:bg-emerald-900/20"
+      };
+    case "SITE_RECEIVER":
+      return { 
+        level: "Field Access", 
+        description: "Site operations",
+        color: "text-teal-700 dark:text-teal-400",
+        bgColor: "bg-teal-50 dark:bg-teal-900/20"
+      };
+    default:
+      return { 
+        level: "Basic Access", 
+        description: "Standard user",
+        color: "text-slate-700 dark:text-slate-400",
+        bgColor: "bg-slate-50 dark:bg-slate-900/20"
+      };
+  }
 }
 
 export function UsersList() {
@@ -169,13 +225,14 @@ export function UsersList() {
 
   const handleExport = () => {
     const csvContent = [
-      ["Name", "Email", "Organization", "Role", "Status", "Created At"].join(","),
+      ["Name", "Email", "Organization", "Role", "Access Level", "Status", "Created At"].join(","),
       ...sortedUsers.map((user) =>
         [
           user.name,
           user.email,
           user.organizationName || "N/A",
-          user.role,
+          formatRoleName(user.role),
+          getAccessLevelInfo(user.role).level,
           user.isSuspended ? "Suspended" : "Active",
           format(new Date(user.createdAt), "yyyy-MM-dd"),
         ].join(",")
@@ -317,6 +374,7 @@ export function UsersList() {
                   <TableHead className="font-semibold">Email</TableHead>
                   <TableHead className="font-semibold">Organization</TableHead>
                   <TableHead className="font-semibold">Role</TableHead>
+                  <TableHead className="font-semibold">Access Level</TableHead>
                   <TableHead className="font-semibold">Status</TableHead>
                   <TableHead className="font-semibold">
                     <button
@@ -361,6 +419,19 @@ export function UsersList() {
                       >
                         {formatRoleName(user.role)}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className={cn(
+                        "inline-flex flex-col px-2.5 py-1 rounded-md",
+                        getAccessLevelInfo(user.role).bgColor
+                      )}>
+                        <span className={cn("text-sm font-medium", getAccessLevelInfo(user.role).color)}>
+                          {getAccessLevelInfo(user.role).level}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {getAccessLevelInfo(user.role).description}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {user.isSuspended ? (
