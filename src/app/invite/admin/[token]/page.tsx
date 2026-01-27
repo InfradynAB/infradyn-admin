@@ -61,40 +61,49 @@ export default function SuperAdminInvitePage({ params }: { params: Promise<{ tok
 
         setAccepting(true);
         try {
-            const res = await fetch("/api/auth/accept-admin-invite", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ token, name, password }),
-            });
+            // Step 1: Use Better Auth to create the user (this handles password hashing correctly)
+            await authClient.signUp.email(
+                {
+                    email: inviteData?.email || "",
+                    password: password,
+                    name: name.trim(),
+                },
+                {
+                    onSuccess: async () => {
+                        // Step 2: After signup, finalize the invite to grant SUPER_ADMIN role
+                        const res = await fetch("/api/auth/accept-admin-invite", {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ token }),
+                            credentials: "include",
+                        });
 
-            const result = await res.json();
+                        const result = await res.json();
 
-            if (result.success) {
-                toast.success("Account created! Signing you in...");
-                // Auto sign-in after account creation
-                await authClient.signIn.email(
-                    {
-                        email: inviteData?.email || "",
-                        password: password,
-                    },
-                    {
-                        onSuccess: () => {
+                        if (result.success) {
                             toast.success("Welcome to the admin dashboard!");
-                            // Use window.location.assign for full page reload to ensure session cookie is synced
+                            // Full page reload to ensure session and role are synced
                             window.location.assign("/");
-                        },
-                        onError: () => {
-                            // If auto sign-in fails, redirect to sign-in page
-                            window.location.assign("/sign-in");
-                        },
-                    }
-                );
-            } else {
-                toast.error(result.error || "Failed to accept invitation");
-            }
+                        } else {
+                            toast.error(result.error || "Failed to grant admin access");
+                            setAccepting(false);
+                        }
+                    },
+                    onError: (ctx) => {
+                        // Check if user already exists
+                        if (ctx.error.message?.toLowerCase().includes("already") || 
+                            ctx.error.message?.toLowerCase().includes("exists")) {
+                            toast.error("An account with this email already exists. Please sign in instead.");
+                            setMode("signin");
+                        } else {
+                            toast.error(ctx.error.message || "Failed to create account");
+                        }
+                        setAccepting(false);
+                    },
+                }
+            );
         } catch {
             toast.error("Something went wrong");
-        } finally {
             setAccepting(false);
         }
     };
@@ -113,11 +122,12 @@ export default function SuperAdminInvitePage({ params }: { params: Promise<{ tok
             },
             {
                 onSuccess: async () => {
-                    // After signing in, accept the invite
+                    // After signing in, accept the invite via PUT to grant SUPER_ADMIN role
                     const res = await fetch("/api/auth/accept-admin-invite", {
-                        method: "POST",
+                        method: "PUT",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ token, existingUser: true }),
+                        body: JSON.stringify({ token }),
+                        credentials: "include",
                     });
                     const result = await res.json();
                     
@@ -127,8 +137,8 @@ export default function SuperAdminInvitePage({ params }: { params: Promise<{ tok
                         window.location.assign("/");
                     } else {
                         toast.error(result.error || "Failed to accept invitation");
+                        setAccepting(false);
                     }
-                    setAccepting(false);
                 },
                 onError: (ctx) => {
                     toast.error(ctx.error.message || "Failed to sign in");

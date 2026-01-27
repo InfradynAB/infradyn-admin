@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/db/drizzle";
-import { superAdminInvitation, user, auditLog, account } from "@/db/schema";
+import { superAdminInvitation, user, auditLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { hashPassword } from "@/lib/utils/password";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
 
@@ -103,7 +102,8 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Handle new user creation
+        // Handle new user creation - just validate, don't create user here
+        // The user will be created via Better Auth's signUp on the client
         if (!name || !password) {
             return NextResponse.json({ 
                 success: false, 
@@ -130,36 +130,83 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Hash the password
-        const hashedPassword = await hashPassword(password);
-
-        // Create the user with SUPER_ADMIN role
-        const [newUser] = await db.insert(user).values({
-            id: crypto.randomUUID(),
+        // Return validation success - client will create user via Better Auth
+        return NextResponse.json({ 
+            success: true, 
+            validated: true,
             email: invite.email,
-            name: name.trim(),
-            role: "SUPER_ADMIN",
-            emailVerified: true, // Auto-verify since they received the invite email
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        }).returning();
-
-        // Create account record for email/password auth (Better Auth pattern)
-        await db.insert(account).values({
-            id: crypto.randomUUID(),
-            userId: newUser.id,
-            accountId: newUser.id,
-            providerId: "credential",
-            password: hashedPassword,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            inviteId: invite.id,
+            invitedBy: invite.invitedBy,
+            message: "Invite validated - proceed with account creation" 
         });
+
+    } catch (error) {
+        console.error("Error accepting admin invite:", error);
+        return NextResponse.json({ 
+            success: false, 
+            error: "Failed to process invitation" 
+        }, { status: 500 });
+    }
+}
+
+// New endpoint to finalize the invite after Better Auth creates the user
+export async function PUT(request: NextRequest) {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers()
+        });
+
+        if (!session?.user) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "Not authenticated" 
+            }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const { token } = body;
+
+        if (!token) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "Missing token" 
+            }, { status: 400 });
+        }
+
+        // Find the invitation
+        const invite = await db.query.superAdminInvitation.findFirst({
+            where: eq(superAdminInvitation.token, token),
+        });
+
+        if (!invite) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "Invitation not found" 
+            }, { status: 404 });
+        }
+
+        // Verify email matches
+        if (session.user.email?.toLowerCase() !== invite.email.toLowerCase()) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "Email mismatch" 
+            }, { status: 400 });
+        }
+
+        // Update user role to SUPER_ADMIN
+        await db.update(user)
+            .set({ 
+                role: "SUPER_ADMIN",
+                emailVerified: true, // Auto-verify since they received the invite
+                updatedAt: new Date(),
+            })
+            .where(eq(user.id, session.user.id));
 
         // Update invitation status
         await db.update(superAdminInvitation)
             .set({ 
                 status: "ACCEPTED", 
-                acceptedUserId: newUser.id,
+                acceptedUserId: session.user.id,
                 updatedAt: new Date(),
             })
             .where(eq(superAdminInvitation.id, invite.id));
@@ -168,9 +215,9 @@ export async function POST(request: NextRequest) {
         await db.insert(auditLog).values({
             action: "USER_CREATED",
             performedBy: invite.invitedBy,
-            targetId: newUser.id,
+            targetId: session.user.id,
             targetType: "USER",
-            targetName: newUser.name,
+            targetName: session.user.name || "Unknown",
             metadata: { 
                 role: "SUPER_ADMIN",
                 invitedVia: "admin_invitation",
@@ -179,14 +226,14 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ 
             success: true, 
-            message: "Account created successfully" 
+            message: "Super Admin role granted successfully" 
         });
 
     } catch (error) {
-        console.error("Error accepting admin invite:", error);
+        console.error("Error finalizing admin invite:", error);
         return NextResponse.json({ 
             success: false, 
-            error: "Failed to create account" 
+            error: "Failed to finalize invitation" 
         }, { status: 500 });
     }
 }
