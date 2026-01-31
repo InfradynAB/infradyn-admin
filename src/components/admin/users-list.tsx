@@ -32,8 +32,18 @@ import {
   CaretDown,
   Users,
   CheckCircle,
-  Warning
+  Warning,
+  EnvelopeSimple,
+  Phone,
+  UserPlus,
+  Clock
 } from "@phosphor-icons/react";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { searchUsers } from "@/lib/actions/super-admin";
 import { generateImpersonationToken } from "@/lib/actions/feature-flags";
 import { toast } from "sonner";
@@ -258,13 +268,20 @@ export function UsersList() {
     }
   };
 
-  const activeCount = users.filter((u) => !u.isSuspended).length;
+  const activeCount = users.filter((u) => !u.isSuspended && (u.organizationId || u.role === "SUPER_ADMIN")).length;
   const suspendedCount = users.filter((u) => u.isSuspended).length;
+  
+  // Separate users with orgs from those without (pending invitation)
+  // Include Super Admins in active users (they don't need orgs)
+  // Exclude Super Admins from pending - they don't need org invites
+  const activeUsers = sortedUsers.filter((u) => u.organizationId || u.role === "SUPER_ADMIN");
+  const pendingUsers = sortedUsers.filter((u) => !u.organizationId && u.role !== "SUPER_ADMIN");
+  const pendingCount = users.filter((u) => !u.organizationId && u.role !== "SUPER_ADMIN").length;
 
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-primary">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -291,6 +308,19 @@ export function UsersList() {
             </div>
           </CardContent>
         </Card>
+        <Card className="border-l-4 border-l-orange-500">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Pending Invite</p>
+                <p className="text-2xl font-bold text-orange-600">{pendingCount}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-orange-500/10 flex items-center justify-center">
+                <Clock className="h-5 w-5 text-orange-500" weight="duotone" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         <Card className="border-l-4 border-l-amber-500">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -306,187 +336,404 @@ export function UsersList() {
         </Card>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative w-full sm:w-80">
-          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search members by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10"
-          />
-        </div>
-        <Button variant="outline" onClick={handleExport} className="gap-2">
-          <Export className="h-4 w-4" />
-          Export
-        </Button>
-      </div>
-
-      {/* Success message for filtered results */}
-      {search && filteredUsers.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-lg">
-          <CheckCircle className="h-4 w-4" weight="fill" />
-          {filteredUsers.length} user(s) found matching &quot;{search}&quot;
-        </div>
-      )}
-
-      {/* Table */}
-      <Card className="overflow-hidden">
-        {loading ? (
-          <CardContent className="py-16 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
-              <div className="space-y-2">
-                <div className="h-4 w-32 bg-muted rounded animate-pulse mx-auto" />
-                <div className="h-3 w-24 bg-muted rounded animate-pulse mx-auto" />
-              </div>
+      {/* Tabs for Active vs Pending Users */}
+      <Tabs defaultValue="active" className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="active" className="gap-2">
+              <Users className="h-4 w-4" />
+              Active Users
+              <Badge variant="secondary" className="ml-1">{activeUsers.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="gap-2">
+              <Clock className="h-4 w-4" />
+              Awaiting Invitation
+              {pendingCount > 0 && (
+                <Badge variant="destructive" className="ml-1">{pendingCount}</Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          <div className="flex gap-2">
+            <div className="relative w-full sm:w-80">
+              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search members by name or email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-10"
+              />
             </div>
-          </CardContent>
-        ) : sortedUsers.length === 0 ? (
-          <CardContent className="py-16 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center">
-                <UserCircle className="h-8 w-8 text-muted-foreground" weight="duotone" />
+            <Button variant="outline" onClick={handleExport} className="gap-2">
+              <Export className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
+        </div>
+
+        {/* Success message for filtered results */}
+        {search && filteredUsers.length > 0 && (
+          <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-lg">
+            <CheckCircle className="h-4 w-4" weight="fill" />
+            {filteredUsers.length} user(s) found matching &quot;{search}&quot;
+          </div>
+        )}
+
+        {/* Active Users Tab */}
+        <TabsContent value="active" className="space-y-4">
+          <Card className="overflow-hidden">
+            {loading ? (
+              <CardContent className="py-16 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 bg-muted rounded animate-pulse mx-auto" />
+                    <div className="h-3 w-24 bg-muted rounded animate-pulse mx-auto" />
+                  </div>
+                </div>
+              </CardContent>
+            ) : activeUsers.length === 0 ? (
+              <CardContent className="py-16 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center">
+                    <UserCircle className="h-8 w-8 text-muted-foreground" weight="duotone" />
+                  </div>
+                  <div>
+                    <p className="font-medium">No active users found</p>
+                    <p className="text-sm text-muted-foreground">
+                      {search ? `No results for "${search}"` : "No users with organizations yet"}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="font-semibold">
+                        <button
+                          onClick={() => toggleSort("name")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Name
+                          <ArrowsDownUp className="h-3.5 w-3.5" />
+                        </button>
+                      </TableHead>
+                      <TableHead className="font-semibold">Email</TableHead>
+                      <TableHead className="font-semibold">Organization</TableHead>
+                      <TableHead className="font-semibold">Role</TableHead>
+                      <TableHead className="font-semibold">Access Level</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">
+                        <button
+                          onClick={() => toggleSort("createdAt")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Added on
+                          <CaretDown className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            sortField === "createdAt" && sortOrder === "asc" && "rotate-180"
+                          )} />
+                        </button>
+                      </TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeUsers.map((user) => (
+                      <TableRow key={user.id} className="group">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className={cn("h-9 w-9", getAvatarColor(user.name))}>
+                              <AvatarFallback className="text-white text-xs font-semibold bg-transparent">
+                                {getInitials(user.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{user.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {user.email}
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium">
+                            {user.organizationName || "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="secondary" 
+                            className={cn("font-medium", getRoleBadgeStyle(user.role))}
+                          >
+                            {formatRoleName(user.role)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className={cn(
+                            "inline-flex flex-col px-2.5 py-1 rounded-md",
+                            getAccessLevelInfo(user.role).bgColor
+                          )}>
+                            <span className={cn("text-sm font-medium", getAccessLevelInfo(user.role).color)}>
+                              {getAccessLevelInfo(user.role).level}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {getAccessLevelInfo(user.role).description}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {user.isSuspended ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-amber-500" />
+                              <span className="text-amber-600 dark:text-amber-400 text-sm">Suspended</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-green-500" />
+                              <span className="text-green-600 dark:text-green-400 text-sm">Active</span>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(user.createdAt), "dd/MM/yyyy")}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <DotsThreeVertical className="h-4 w-4" weight="bold" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem onClick={() => handleImpersonate(user.id)}>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy Impersonate Link
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                <Prohibit className="mr-2 h-4 w-4" />
+                                {user.isSuspended ? "Unsuspend User" : "Suspend User"}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
+            )}
+          </Card>
+          
+          {/* Footer info */}
+          {activeUsers.length > 0 && (
+            <div className="text-sm text-muted-foreground text-center">
+              Showing {activeUsers.length} active users
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Pending Users Tab */}
+        <TabsContent value="pending" className="space-y-4">
+          {/* Alert banner */}
+          {pendingUsers.length > 0 && (
+            <div className="flex items-start gap-3 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+              <Clock className="h-5 w-5 text-orange-600 mt-0.5" weight="duotone" />
               <div>
-                <p className="font-medium">No users found</p>
-                <p className="text-sm text-muted-foreground">
-                  {search ? `No results for "${search}"` : "No users in the system yet"}
+                <p className="font-medium text-orange-800 dark:text-orange-300">
+                  {pendingUsers.length} user(s) awaiting invitation
+                </p>
+                <p className="text-sm text-orange-600 dark:text-orange-400">
+                  These users signed up without an invitation link. They need to be contacted and invited to an organization.
                 </p>
               </div>
             </div>
-          </CardContent>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="font-semibold">
-                    <button
-                      onClick={() => toggleSort("name")}
-                      className="flex items-center gap-1 hover:text-foreground transition-colors"
-                    >
-                      Name
-                      <ArrowsDownUp className="h-3.5 w-3.5" />
-                    </button>
-                  </TableHead>
-                  <TableHead className="font-semibold">Email</TableHead>
-                  <TableHead className="font-semibold">Organization</TableHead>
-                  <TableHead className="font-semibold">Role</TableHead>
-                  <TableHead className="font-semibold">Access Level</TableHead>
-                  <TableHead className="font-semibold">Status</TableHead>
-                  <TableHead className="font-semibold">
-                    <button
-                      onClick={() => toggleSort("createdAt")}
-                      className="flex items-center gap-1 hover:text-foreground transition-colors"
-                    >
-                      Added on
-                      <CaretDown className={cn(
-                        "h-3.5 w-3.5 transition-transform",
-                        sortField === "createdAt" && sortOrder === "asc" && "rotate-180"
-                      )} />
-                    </button>
-                  </TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedUsers.map((user) => (
-                  <TableRow key={user.id} className="group">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className={cn("h-9 w-9", getAvatarColor(user.name))}>
-                          <AvatarFallback className="text-white text-xs font-semibold bg-transparent">
-                            {getInitials(user.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{user.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.email}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">
-                        {user.organizationName || "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant="secondary" 
-                        className={cn("font-medium", getRoleBadgeStyle(user.role))}
-                      >
-                        {formatRoleName(user.role)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className={cn(
-                        "inline-flex flex-col px-2.5 py-1 rounded-md",
-                        getAccessLevelInfo(user.role).bgColor
-                      )}>
-                        <span className={cn("text-sm font-medium", getAccessLevelInfo(user.role).color)}>
-                          {getAccessLevelInfo(user.role).level}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {getAccessLevelInfo(user.role).description}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {user.isSuspended ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-amber-500" />
-                          <span className="text-amber-600 dark:text-amber-400 text-sm">Suspended</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-green-500" />
-                          <span className="text-green-600 dark:text-green-400 text-sm">Active</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(user.createdAt), "dd/MM/yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+          )}
+          
+          <Card className="overflow-hidden">
+            {loading ? (
+              <CardContent className="py-16 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 bg-muted rounded animate-pulse mx-auto" />
+                    <div className="h-3 w-24 bg-muted rounded animate-pulse mx-auto" />
+                  </div>
+                </div>
+              </CardContent>
+            ) : pendingUsers.length === 0 ? (
+              <CardContent className="py-16 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <CheckCircle className="h-8 w-8 text-green-600" weight="duotone" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-green-700 dark:text-green-400">All clear!</p>
+                    <p className="text-sm text-muted-foreground">
+                      No pending users awaiting invitation
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50/50">
+                      <TableHead className="font-semibold">
+                        <button
+                          onClick={() => toggleSort("name")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Name
+                          <ArrowsDownUp className="h-3.5 w-3.5" />
+                        </button>
+                      </TableHead>
+                      <TableHead className="font-semibold">Email</TableHead>
+                      <TableHead className="font-semibold">Requested Role</TableHead>
+                      <TableHead className="font-semibold">
+                        <button
+                          onClick={() => toggleSort("createdAt")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Signed Up
+                          <CaretDown className={cn(
+                            "h-3.5 w-3.5 transition-transform",
+                            sortField === "createdAt" && sortOrder === "asc" && "rotate-180"
+                          )} />
+                        </button>
+                      </TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingUsers.map((user) => (
+                      <TableRow key={user.id} className="group bg-orange-50/30 dark:bg-orange-900/5">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className={cn("h-9 w-9", getAvatarColor(user.name))}>
+                              <AvatarFallback className="text-white text-xs font-semibold bg-transparent">
+                                {getInitials(user.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <span className="font-medium">{user.name}</span>
+                              <p className="text-xs text-muted-foreground">No organization</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{user.email}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                navigator.clipboard.writeText(user.email);
+                                toast.success("Email copied!");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="secondary" 
+                            className={cn("font-medium", getRoleBadgeStyle(user.role))}
                           >
-                            <DotsThreeVertical className="h-4 w-4" weight="bold" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => handleImpersonate(user.id)}>
-                            <Copy className="mr-2 h-4 w-4" />
-                            Copy Impersonate Link
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive focus:text-destructive">
-                            <Prohibit className="mr-2 h-4 w-4" />
-                            {user.isSuspended ? "Unsuspend User" : "Suspend User"}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Card>
-
-      {/* Footer info */}
-      {sortedUsers.length > 0 && (
-        <div className="text-sm text-muted-foreground text-center">
-          Showing {sortedUsers.length} of {users.length} users
-        </div>
-      )}
+                            {formatRoleName(user.role)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(user.createdAt), "dd/MM/yyyy")}
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(user.createdAt), "HH:mm")}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+                            <span className="text-orange-600 dark:text-orange-400 text-sm font-medium">
+                              Needs Invite
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 text-xs"
+                              onClick={() => {
+                                navigator.clipboard.writeText(user.email);
+                                toast.success("Email copied!", {
+                                  description: user.email
+                                });
+                              }}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              Copy Email
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="gap-1.5 text-xs"
+                              onClick={() => {
+                                toast.info("Send invitation feature coming soon", {
+                                  description: "You can email the user for now to get their organization details."
+                                });
+                              }}
+                            >
+                              <UserPlus className="h-3.5 w-3.5" />
+                              Send Invite
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                >
+                                  <DotsThreeVertical className="h-4 w-4" weight="bold" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem onClick={() => handleImpersonate(user.id)}>
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  Copy Impersonate Link
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                  <Prohibit className="mr-2 h-4 w-4" />
+                                  Delete User
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Card>
+          
+          {/* Footer info */}
+          {pendingUsers.length > 0 && (
+            <div className="text-sm text-muted-foreground text-center">
+              Showing {pendingUsers.length} pending users awaiting invitation
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
