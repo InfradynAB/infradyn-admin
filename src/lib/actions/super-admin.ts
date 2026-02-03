@@ -14,7 +14,8 @@ import InvitationEmail from "@/emails/invitation-email";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
- * Create a new organization and optionally invite a PM as the primary contact
+ * Create a new organization and invite an Admin as the primary contact
+ * Admin invitation is MANDATORY - they will manage the org in the Materials App
  */
 export async function createOrganization(data: {
   name: string;
@@ -25,8 +26,8 @@ export async function createOrganization(data: {
   phone?: string;
   website?: string;
   plan: "FREE" | "STARTER" | "PROFESSIONAL" | "ENTERPRISE";
-  pmEmail?: string; // Optional: Invite a PM to this org
-  pmName?: string;
+  adminEmail: string; // Required: Admin email to manage this org
+  adminName: string; // Required: Admin name
 }) {
   const superAdmin = await requireSuperAdmin();
   
@@ -55,94 +56,92 @@ export async function createOrganization(data: {
       lastActivityAt: new Date(),
     }).returning();
 
-    // If PM email provided, send invitation
-    if (data.pmEmail) {
-      // Check if user already exists
-      const existingUser = await db.query.user.findFirst({
-        where: eq(user.email, data.pmEmail),
+    // Send Admin invitation (MANDATORY)
+    // Check if user already exists
+    const existingUser = await db.query.user.findFirst({
+      where: eq(user.email, data.adminEmail),
+    });
+
+    if (existingUser) {
+      // Link existing user to new org as ADMIN
+      // Update their organization if they don't have one
+      if (!existingUser.organizationId) {
+        await db.update(user)
+          .set({ 
+            organizationId: newOrg.id,
+            role: "ADMIN" 
+          })
+          .where(eq(user.id, existingUser.id));
+      }
+      
+      // Add them as a member with ADMIN role
+      await db.insert(member).values({
+        userId: existingUser.id,
+        organizationId: newOrg.id,
+        role: "ADMIN",
       });
 
-      if (existingUser) {
-        // Link existing user to new org as PM
-        // Update their organization if they don't have one
-        if (!existingUser.organizationId) {
-          await db.update(user)
-            .set({ 
-              organizationId: newOrg.id,
-              role: "PM" 
-            })
-            .where(eq(user.id, existingUser.id));
-        }
-        
-        // Add them as a member
-        await db.insert(member).values({
-          userId: existingUser.id,
-          organizationId: newOrg.id,
-          role: "PM",
+      // Send email notification that they've been added as Admin
+      try {
+        const emailHtml = await render(
+          InvitationEmail({
+            organizationName: newOrg.name,
+            role: "Organization Admin",
+            inviteLink: `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/sign-in`,
+            inviterName: data.adminName || existingUser.name || "there"
+          })
+        );
+
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+          to: data.adminEmail,
+          subject: `You're now an Admin of ${newOrg.name} on Infradyn`,
+          html: emailHtml
+        });
+      } catch (emailError) {
+        console.error("[CREATE_ORG] Failed to send notification email:", emailError);
+      }
+    } else {
+      // Create invitation for new Admin
+      const token = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      await db.insert(invitation).values({
+        organizationId: newOrg.id,
+        email: data.adminEmail,
+        role: "ADMIN",
+        token,
+        expiresAt,
+        status: "PENDING",
+      });
+
+      // Send invitation email - link to MAIN APP (materials.infradyn.com)
+      const inviteUrl = `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/invite/${token}`;
+      
+      try {
+        const emailHtml = await render(
+          InvitationEmail({
+            organizationName: newOrg.name,
+            role: "Organization Admin",
+            inviteLink: inviteUrl,
+            inviterName: data.adminName
+          })
+        );
+
+        const result = await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+          to: data.adminEmail,
+          subject: `You're invited to manage ${newOrg.name} on Infradyn`,
+          html: emailHtml
         });
 
-        // Still send email notification that they've been added
-        try {
-          const emailHtml = await render(
-            InvitationEmail({
-              organizationName: newOrg.name,
-              role: "Project Manager",
-              inviteLink: `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/sign-in`,
-              inviterName: data.pmName || existingUser.name || "there"
-            })
-          );
-
-          await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
-            to: data.pmEmail,
-            subject: `You've been added to ${newOrg.name} on Infradyn`,
-            html: emailHtml
-          });
-        } catch (emailError) {
-          console.error("[CREATE_ORG] Failed to send notification email:", emailError);
+        if (result.error) {
+          console.error("[CREATE_ORG] Resend error:", result.error);
+        } else {
+          console.log("[CREATE_ORG] Admin invitation email sent to:", data.adminEmail);
         }
-      } else {
-        // Create invitation for new PM
-        const token = crypto.randomUUID();
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
-        await db.insert(invitation).values({
-          organizationId: newOrg.id,
-          email: data.pmEmail,
-          role: "PM",
-          token,
-          expiresAt,
-          status: "PENDING",
-        });
-
-        // Send invitation email - link to MAIN APP (materials.infradyn.com) not admin
-        const inviteUrl = `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/invite/${token}`;
-        
-        try {
-          const emailHtml = await render(
-            InvitationEmail({
-              organizationName: newOrg.name,
-              role: "Project Manager",
-              inviteLink: inviteUrl,
-              inviterName: data.pmName || "there"
-            })
-          );
-
-          const result = await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
-            to: data.pmEmail,
-            subject: `Join ${newOrg.name} on Infradyn`,
-            html: emailHtml
-          });
-
-          if (result.error) {
-            console.error("[CREATE_ORG] Resend error:", result.error);
-          } else {
-            console.log("[CREATE_ORG] Invitation email sent to:", data.pmEmail);
-          }
-        } catch (emailError) {
-          console.error("[CREATE_ORG] Failed to send invitation email:", emailError);
-        }
+      } catch (emailError) {
+        console.error("[CREATE_ORG] Failed to send invitation email:", emailError);
       }
     }
 
@@ -154,7 +153,7 @@ export async function createOrganization(data: {
       targetType: "ORGANIZATION",
       targetId: newOrg.id,
       targetName: newOrg.name,
-      metadata: { plan: data.plan, pmEmail: data.pmEmail },
+      metadata: { plan: data.plan, adminEmail: data.adminEmail },
       ipAddress: headersList.get("x-forwarded-for") || "unknown",
       userAgent: headersList.get("user-agent") || "unknown",
     });
@@ -725,6 +724,159 @@ export async function inviteSuperAdmin(email: string) {
     return { success: true, message: "Invitation sent successfully" };
   } catch (error) {
     console.error("Error inviting super admin:", error);
+    return { success: false, error: "Failed to send invitation" };
+  }
+}
+
+/**
+ * Invite an Organization Admin to an existing organization
+ * Only Super Admins can invite Admins - Admins manage other roles in the Materials App
+ */
+export async function inviteOrganizationAdmin(data: {
+  organizationId: string;
+  adminEmail: string;
+  adminName: string;
+}) {
+  const superAdmin = await requireSuperAdmin();
+
+  try {
+    // Get the organization
+    const org = await db.query.organization.findFirst({
+      where: eq(organization.id, data.organizationId),
+    });
+
+    if (!org) {
+      return { success: false, error: "Organization not found" };
+    }
+
+    // Check if user already exists
+    const existingUser = await db.query.user.findFirst({
+      where: eq(user.email, data.adminEmail),
+    });
+
+    if (existingUser) {
+      // Check if they're already a member of this org
+      const existingMember = await db.query.member.findFirst({
+        where: (m, { and, eq }) => and(
+          eq(m.userId, existingUser.id),
+          eq(m.organizationId, data.organizationId)
+        ),
+      });
+
+      if (existingMember) {
+        return { success: false, error: "User is already a member of this organization" };
+      }
+
+      // Link existing user to org as ADMIN
+      if (!existingUser.organizationId) {
+        await db.update(user)
+          .set({ 
+            organizationId: org.id,
+            role: "ADMIN" 
+          })
+          .where(eq(user.id, existingUser.id));
+      }
+      
+      // Add them as a member with ADMIN role
+      await db.insert(member).values({
+        userId: existingUser.id,
+        organizationId: org.id,
+        role: "ADMIN",
+      });
+
+      // Send email notification
+      try {
+        const emailHtml = await render(
+          InvitationEmail({
+            organizationName: org.name,
+            role: "Organization Admin",
+            inviteLink: `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/sign-in`,
+            inviterName: data.adminName || existingUser.name || "there"
+          })
+        );
+
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+          to: data.adminEmail,
+          subject: `You're now an Admin of ${org.name} on Infradyn`,
+          html: emailHtml
+        });
+      } catch (emailError) {
+        console.error("[INVITE_ADMIN] Failed to send notification email:", emailError);
+      }
+    } else {
+      // Check if there's already a pending invitation for this email
+      const existingInvitation = await db.query.invitation.findFirst({
+        where: (inv, { and, eq }) => and(
+          eq(inv.email, data.adminEmail),
+          eq(inv.organizationId, data.organizationId),
+          eq(inv.status, "PENDING")
+        ),
+      });
+
+      if (existingInvitation) {
+        return { success: false, error: "An invitation is already pending for this email" };
+      }
+
+      // Create invitation for new Admin
+      const token = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      await db.insert(invitation).values({
+        organizationId: org.id,
+        email: data.adminEmail,
+        role: "ADMIN",
+        token,
+        expiresAt,
+        status: "PENDING",
+      });
+
+      // Send invitation email - link to MAIN APP
+      const inviteUrl = `${process.env.MAIN_APP_URL || "https://materials.infradyn.com"}/invite/${token}`;
+      
+      try {
+        const emailHtml = await render(
+          InvitationEmail({
+            organizationName: org.name,
+            role: "Organization Admin",
+            inviteLink: inviteUrl,
+            inviterName: data.adminName
+          })
+        );
+
+        const result = await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+          to: data.adminEmail,
+          subject: `You're invited to manage ${org.name} on Infradyn`,
+          html: emailHtml
+        });
+
+        if (result.error) {
+          console.error("[INVITE_ADMIN] Resend error:", result.error);
+        } else {
+          console.log("[INVITE_ADMIN] Admin invitation email sent to:", data.adminEmail);
+        }
+      } catch (emailError) {
+        console.error("[INVITE_ADMIN] Failed to send invitation email:", emailError);
+      }
+    }
+
+    // Log the action
+    const headersList = await headers();
+    await db.insert(auditLog).values({
+      action: "ADMIN_INVITED",
+      performedBy: superAdmin.id,
+      targetType: "USER",
+      targetId: data.adminEmail,
+      targetName: data.adminName,
+      metadata: { organizationId: org.id, organizationName: org.name, email: data.adminEmail },
+      ipAddress: headersList.get("x-forwarded-for") || "unknown",
+      userAgent: headersList.get("user-agent") || "unknown",
+    });
+
+    return { success: true, message: "Admin invitation sent successfully" };
+  } catch (error) {
+    console.error("Error inviting organization admin:", error);
     return { success: false, error: "Failed to send invitation" };
   }
 }

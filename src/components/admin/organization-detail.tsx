@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   ArrowLeft, 
   Building2, 
@@ -25,12 +26,15 @@ import {
   Ban,
   CheckCircle,
   Pencil,
+  UserPlus,
+  Info,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { suspendOrganization, activateOrganization } from "@/lib/actions/super-admin";
 import { toast } from "sonner";
 import { SuspendDialog } from "./suspend-dialog";
 import { EditOrganizationDialog } from "./edit-organization-dialog";
+import { InviteAdminDialog } from "./invite-admin-dialog";
 
 interface OrganizationDetailProps {
   organization: any;
@@ -43,6 +47,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
   const [org, setOrg] = useState(organization);
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [inviteAdminDialogOpen, setInviteAdminDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleActivate = async () => {
@@ -95,6 +100,14 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
           </div>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setInviteAdminDialogOpen(true)}
+            className="border-[#0F6157] text-[#0F6157] hover:bg-[#0F6157]/10"
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Invite Admin
+          </Button>
           <Button variant="outline" onClick={() => setEditDialogOpen(true)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
@@ -240,10 +253,30 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
       {/* Members Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Team Members</CardTitle>
-          <CardDescription>All users in this organization</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Team Members</CardTitle>
+              <CardDescription>All users in this organization (read-only)</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <Alert className="bg-sky-50 border-sky-200">
+            <Info className="h-4 w-4 text-sky-600" />
+            <AlertDescription className="text-sky-800">
+              <span className="font-medium">Delegated Admin Model:</span> You can invite Admins from here. 
+              PMs, Suppliers, and QA team members are managed by Organization Admins in the{" "}
+              <a 
+                href={process.env.MAIN_APP_URL || "https://materials.infradyn.com"} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-medium underline hover:text-sky-900"
+              >
+                Materials App
+              </a>.
+            </AlertDescription>
+          </Alert>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -299,6 +332,13 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
         onOpenChange={setEditDialogOpen}
         organization={org}
         onSuccess={(updated) => setOrg({ ...org, ...updated })}
+      />
+      <InviteAdminDialog
+        open={inviteAdminDialogOpen}
+        onOpenChange={setInviteAdminDialogOpen}
+        organizationId={org.id}
+        organizationName={org.name}
+        onSuccess={() => router.refresh()}
       />
     </div>
   );

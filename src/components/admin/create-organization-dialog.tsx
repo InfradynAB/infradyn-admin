@@ -37,8 +37,8 @@ export function CreateOrganizationDialog({ children }: { children: ReactNode }) 
     contactEmail: "",
     phone: "",
     website: "",
-    pmEmail: "",
-    pmName: "",
+    adminEmail: "",
+    adminName: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,8 +59,8 @@ export function CreateOrganizationDialog({ children }: { children: ReactNode }) 
         contactEmail: "",
         phone: "",
         website: "",
-        pmEmail: "",
-        pmName: "",
+        adminEmail: "",
+        adminName: "",
       });
       router.refresh();
     } else {
@@ -84,7 +84,7 @@ export function CreateOrganizationDialog({ children }: { children: ReactNode }) 
         <DialogHeader>
           <DialogTitle>Create New Organization</DialogTitle>
           <DialogDescription>
-            Set up a new organization and optionally invite a PM to manage it.
+            Set up a new organization and invite an Admin to manage it in the Materials App.
           </DialogDescription>
         </DialogHeader>
 
@@ -191,36 +191,39 @@ export function CreateOrganizationDialog({ children }: { children: ReactNode }) 
             </div>
           </div>
 
-          {/* PM Invitation */}
+          {/* Admin Invitation - REQUIRED */}
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="font-medium">Invite Project Manager (Optional)</h3>
+            <h3 className="font-medium">Organization Admin <span className="text-destructive">*</span></h3>
             <p className="text-sm text-muted-foreground">
-              Invite a PM to manage this organization. They&apos;ll receive an email invitation.
+              Invite an Admin who will manage this organization in the Materials App. 
+              They can add PMs, Suppliers, and QA team members from their dashboard.
             </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="pmEmail">PM Email</Label>
+                <Label htmlFor="adminEmail">Admin Email *</Label>
                 <Input
-                  id="pmEmail"
+                  id="adminEmail"
                   type="email"
-                  value={formData.pmEmail}
+                  value={formData.adminEmail}
                   onChange={(e) =>
-                    setFormData({ ...formData, pmEmail: e.target.value })
+                    setFormData({ ...formData, adminEmail: e.target.value })
                   }
-                  placeholder="pm@company.com"
+                  placeholder="admin@company.com"
+                  required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="pmName">PM Name</Label>
+                <Label htmlFor="adminName">Admin Name *</Label>
                 <Input
-                  id="pmName"
-                  value={formData.pmName}
+                  id="adminName"
+                  value={formData.adminName}
                   onChange={(e) =>
-                    setFormData({ ...formData, pmName: e.target.value })
+                    setFormData({ ...formData, adminName: e.target.value })
                   }
-                  placeholder="John Doe"
+                  placeholder="Jane Smith"
+                  required
                 />
               </div>
             </div>
