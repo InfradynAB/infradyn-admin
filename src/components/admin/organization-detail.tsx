@@ -14,21 +14,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  ArrowLeft, 
-  Building2, 
-  Users, 
-  DollarSign, 
-  Calendar, 
-  Mail, 
-  Phone, 
+import {
+  ArrowLeft,
+  Buildings,
+  Users,
+  CurrencyDollar,
+  CalendarBlank,
+  Envelope,
+  Phone,
   Globe,
-  Ban,
+  Prohibit,
   CheckCircle,
-  Pencil,
+  PencilSimple,
   UserPlus,
   Info,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { formatDistanceToNow, format } from "date-fns";
 import { suspendOrganization, activateOrganization } from "@/lib/actions/super-admin";
 import { toast } from "sonner";
@@ -89,7 +89,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
               <Badge
                 variant={
                   org.status === "ACTIVE" ? "default" :
-                  org.status === "SUSPENDED" ? "destructive" : "secondary"
+                    org.status === "SUSPENDED" ? "destructive" : "secondary"
                 }
               >
                 {org.status}
@@ -100,8 +100,8 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
           </div>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setInviteAdminDialogOpen(true)}
             className="border-[#0F6157] text-[#0F6157] hover:bg-[#0F6157]/10"
           >
@@ -109,7 +109,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
             Invite Admin
           </Button>
           <Button variant="outline" onClick={() => setEditDialogOpen(true)}>
-            <Pencil className="mr-2 h-4 w-4" />
+            <PencilSimple className="mr-2 h-4 w-4" />
             Edit
           </Button>
           {org.status === "SUSPENDED" ? (
@@ -118,12 +118,12 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
               Activate
             </Button>
           ) : (
-            <Button 
-              variant="destructive" 
-              onClick={() => setSuspendDialogOpen(true)} 
+            <Button
+              variant="destructive"
+              onClick={() => setSuspendDialogOpen(true)}
               disabled={loading}
             >
-              <Ban className="mr-2 h-4 w-4" />
+              <Prohibit className="mr-2 h-4 w-4" />
               Suspend
             </Button>
           )}
@@ -135,7 +135,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CurrencyDollar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -155,7 +155,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Plan</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Buildings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{org.plan}</div>
@@ -164,7 +164,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CalendarBlank className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -184,7 +184,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Buildings className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Industry</p>
                 <p className="font-medium">{org.industry || "Not specified"}</p>
@@ -198,7 +198,7 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-muted-foreground" />
+              <Envelope className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Contact Email</p>
                 <p className="font-medium">{org.contactEmail || "Not specified"}</p>
@@ -264,11 +264,11 @@ export function OrganizationDetail({ organization, members, userCount }: Organiz
           <Alert className="bg-sky-50 border-sky-200">
             <Info className="h-4 w-4 text-sky-600" />
             <AlertDescription className="text-sky-800">
-              <span className="font-medium">Delegated Admin Model:</span> You can invite Admins from here. 
+              <span className="font-medium">Delegated Admin Model:</span> You can invite Admins from here.
               PMs, Suppliers, and QA team members are managed by Organization Admins in the{" "}
-              <a 
-                href={process.env.MAIN_APP_URL || "https://materials.infradyn.com"} 
-                target="_blank" 
+              <a
+                href={process.env.MAIN_APP_URL || "https://materials.infradyn.com"}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium underline hover:text-sky-900"
               >

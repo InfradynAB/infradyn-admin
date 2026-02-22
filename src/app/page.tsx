@@ -29,7 +29,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <AdminSidebar />
-      <div className="lg:pl-[260px]">
+      <div className="lg:pl-[240px]">
         <AdminHeader />
         <main className="p-6 lg:p-8">
           <div className="space-y-8 max-w-[1600px] mx-auto">

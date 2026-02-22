@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { DownloadSimple } from "@phosphor-icons/react";
 
 export function AuditLogsList() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -91,7 +91,7 @@ export function AuditLogsList() {
             </div>
 
             <Button variant="outline" onClick={exportToCSV}>
-              <Download className="mr-2 h-4 w-4" />
+              <DownloadSimple className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
           </div>

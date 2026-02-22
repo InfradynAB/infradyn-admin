@@ -21,22 +21,22 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { 
-  MagnifyingGlass, 
-  Export, 
-  DotsThreeVertical, 
-  Copy, 
-  UserCircle, 
+import {
+  MagnifyingGlass,
+  Export,
+  DotsThreeVertical,
+  Copy,
+  UserCircle,
   Prohibit,
   ArrowsDownUp,
   CaretDown,
+  UserPlus,
+  Clock,
   Users,
   CheckCircle,
   Warning,
   EnvelopeSimple,
-  Phone,
-  UserPlus,
-  Clock
+  Phone
 } from "@phosphor-icons/react";
 import {
   Tabs,
@@ -49,6 +49,7 @@ import { generateImpersonationToken } from "@/lib/actions/feature-flags";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/admin/stat-card";
 
 interface SearchUser {
   id: string;
@@ -126,50 +127,50 @@ function formatRoleName(role: string): string {
 function getAccessLevelInfo(role: string): { level: string; description: string; color: string; bgColor: string } {
   switch (role) {
     case "SUPER_ADMIN":
-      return { 
-        level: "Full Access", 
+      return {
+        level: "Full Access",
         description: "System-wide control",
         color: "text-violet-700 dark:text-violet-400",
         bgColor: "bg-violet-50 dark:bg-violet-900/20"
       };
     case "ADMIN":
-      return { 
-        level: "Admin Access", 
+      return {
+        level: "Admin Access",
         description: "Organization admin",
         color: "text-indigo-700 dark:text-indigo-400",
         bgColor: "bg-indigo-50 dark:bg-indigo-900/20"
       };
     case "PM":
-      return { 
-        level: "Manager Access", 
+      return {
+        level: "Manager Access",
         description: "Project management",
         color: "text-sky-700 dark:text-sky-400",
         bgColor: "bg-sky-50 dark:bg-sky-900/20"
       };
     case "SUPPLIER":
-      return { 
-        level: "Vendor Access", 
+      return {
+        level: "Vendor Access",
         description: "Supply chain ops",
         color: "text-amber-700 dark:text-amber-400",
         bgColor: "bg-amber-50 dark:bg-amber-900/20"
       };
     case "QA":
-      return { 
-        level: "Inspector Access", 
+      return {
+        level: "Inspector Access",
         description: "Quality control",
         color: "text-emerald-700 dark:text-emerald-400",
         bgColor: "bg-emerald-50 dark:bg-emerald-900/20"
       };
     case "SITE_RECEIVER":
-      return { 
-        level: "Field Access", 
+      return {
+        level: "Field Access",
         description: "Site operations",
         color: "text-teal-700 dark:text-teal-400",
         bgColor: "bg-teal-50 dark:bg-teal-900/20"
       };
     default:
-      return { 
-        level: "Basic Access", 
+      return {
+        level: "Basic Access",
         description: "Standard user",
         color: "text-slate-700 dark:text-slate-400",
         bgColor: "bg-slate-50 dark:bg-slate-900/20"
@@ -270,7 +271,7 @@ export function UsersList() {
 
   const activeCount = users.filter((u) => !u.isSuspended && (u.organizationId || u.role === "SUPER_ADMIN")).length;
   const suspendedCount = users.filter((u) => u.isSuspended).length;
-  
+
   // Separate users with orgs from those without (pending invitation)
   // Include Super Admins in active users (they don't need orgs)
   // Exclude Super Admins from pending - they don't need org invites
@@ -281,59 +282,31 @@ export function UsersList() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">{users.length}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Users className="h-5 w-5 text-primary" weight="duotone" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active</p>
-                <p className="text-2xl font-bold text-green-600">{activeCount}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-green-500" weight="duotone" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Pending Invite</p>
-                <p className="text-2xl font-bold text-orange-600">{pendingCount}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-orange-500/10 flex items-center justify-center">
-                <Clock className="h-5 w-5 text-orange-500" weight="duotone" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Suspended</p>
-                <p className="text-2xl font-bold text-amber-600">{suspendedCount}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
-                <Warning className="h-5 w-5 text-amber-500" weight="duotone" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <StatCard
+          title="Total Users"
+          value={users.length}
+          sparklineData={[{ value: 50 }, { value: 60 }, { value: 55 }, { value: 70 }, { value: 65 }, { value: 80 }]}
+          change={{ value: "+4%", direction: "up", label: "this week" }}
+        />
+        <StatCard
+          title="Active Users"
+          value={activeCount}
+          sparklineData={[{ value: 40 }, { value: 45 }, { value: 42 }, { value: 50 }, { value: 55 }, { value: 60 }]}
+          change={{ value: "+2%", direction: "up", label: "this week" }}
+        />
+        <StatCard
+          title="Pending Invite"
+          value={pendingCount}
+          sparklineData={[{ value: 20 }, { value: 18 }, { value: 22 }, { value: 15 }, { value: 12 }, { value: 10 }]}
+          change={{ value: "-5%", direction: "down", label: "this week" }}
+        />
+        <StatCard
+          title="Suspended"
+          value={suspendedCount}
+          sparklineData={[{ value: 5 }, { value: 6 }, { value: 5 }, { value: 7 }, { value: 6 }, { value: 5 }]}
+          change={{ value: "0%", direction: "neutral", label: "constant" }}
+        />
       </div>
 
       {/* Tabs for Active vs Pending Users */}
@@ -461,8 +434,8 @@ export function UsersList() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant="secondary" 
+                          <Badge
+                            variant="secondary"
                             className={cn("font-medium", getRoleBadgeStyle(user.role))}
                           >
                             {formatRoleName(user.role)}
@@ -500,9 +473,9 @@ export function UsersList() {
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <DotsThreeVertical className="h-4 w-4" weight="bold" />
@@ -528,7 +501,7 @@ export function UsersList() {
               </div>
             )}
           </Card>
-          
+
           {/* Footer info */}
           {activeUsers.length > 0 && (
             <div className="text-sm text-muted-foreground text-center">
@@ -553,7 +526,7 @@ export function UsersList() {
               </div>
             </div>
           )}
-          
+
           <Card className="overflow-hidden">
             {loading ? (
               <CardContent className="py-16 text-center">
@@ -644,8 +617,8 @@ export function UsersList() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant="secondary" 
+                          <Badge
+                            variant="secondary"
                             className={cn("font-medium", getRoleBadgeStyle(user.role))}
                           >
                             {formatRoleName(user.role)}
@@ -696,9 +669,9 @@ export function UsersList() {
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   className="h-8 w-8"
                                 >
                                   <DotsThreeVertical className="h-4 w-4" weight="bold" />
@@ -725,7 +698,7 @@ export function UsersList() {
               </div>
             )}
           </Card>
-          
+
           {/* Footer info */}
           {pendingUsers.length > 0 && (
             <div className="text-sm text-muted-foreground text-center">

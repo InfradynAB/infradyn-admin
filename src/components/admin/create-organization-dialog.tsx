@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { createOrganization } from "@/lib/actions/super-admin";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 
 export function CreateOrganizationDialog({ children }: { children: ReactNode }) {
@@ -92,7 +92,7 @@ export function CreateOrganizationDialog({ children }: { children: ReactNode }) 
           {/* Basic Info */}
           <div className="space-y-4">
             <h3 className="font-medium">Basic Information</h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Organization Name *</Label>
@@ -195,7 +195,7 @@ export function CreateOrganizationDialog({ children }: { children: ReactNode }) 
           <div className="space-y-4 pt-4 border-t">
             <h3 className="font-medium">Organization Admin <span className="text-destructive">*</span></h3>
             <p className="text-sm text-muted-foreground">
-              Invite an Admin who will manage this organization in the Materials App. 
+              Invite an Admin who will manage this organization in the Materials App.
               They can add PMs, Suppliers, and QA team members from their dashboard.
             </p>
 
@@ -245,7 +245,7 @@ export function CreateOrganizationDialog({ children }: { children: ReactNode }) 
             >
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
                   Creating...
                 </>
               ) : (

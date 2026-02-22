@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, MoreVertical, Ban, CheckCircle, Pencil } from "lucide-react";
+import { MagnifyingGlass, DotsThreeVertical, Prohibit, CheckCircle, PencilSimple } from "@phosphor-icons/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,7 +67,7 @@ export function OrganizationsList() {
         status?: "TRIAL" | "ACTIVE" | "SUSPENDED" | "CANCELLED" | "DELINQUENT";
         plan?: "FREE" | "STARTER" | "PROFESSIONAL" | "ENTERPRISE";
       } = {};
-      
+
       if (statusFilter !== "all") {
         filters.status = statusFilter as "TRIAL" | "ACTIVE" | "SUSPENDED" | "CANCELLED" | "DELINQUENT";
       }
@@ -91,7 +91,7 @@ export function OrganizationsList() {
       status?: "TRIAL" | "ACTIVE" | "SUSPENDED" | "CANCELLED" | "DELINQUENT";
       plan?: "FREE" | "STARTER" | "PROFESSIONAL" | "ENTERPRISE";
     } = {};
-    
+
     if (statusFilter !== "all") {
       filters.status = statusFilter as "TRIAL" | "ACTIVE" | "SUSPENDED" | "CANCELLED" | "DELINQUENT";
     }
@@ -113,7 +113,7 @@ export function OrganizationsList() {
 
   const handleSuspendConfirm = async (reason: string) => {
     if (!selectedOrg) return;
-    
+
     const result = await suspendOrganization(selectedOrg.id, reason);
     if (result.success) {
       toast.success("Organization suspended successfully");
@@ -147,7 +147,7 @@ export function OrganizationsList() {
         <CardContent className="pt-6">
           <div className="flex gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search organizations..."
                 value={search}
@@ -227,8 +227,8 @@ export function OrganizationsList() {
                         org.status === "ACTIVE"
                           ? "default"
                           : org.status === "SUSPENDED"
-                          ? "destructive"
-                          : "secondary"
+                            ? "destructive"
+                            : "secondary"
                       }
                     >
                       {org.status}
@@ -238,15 +238,15 @@ export function OrganizationsList() {
                   <TableCell>
                     {org.lastActivityAt
                       ? formatDistanceToNow(new Date(org.lastActivityAt), {
-                          addSuffix: true,
-                        })
+                        addSuffix: true,
+                      })
                       : "Never"}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
+                          <DotsThreeVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -260,7 +260,7 @@ export function OrganizationsList() {
                         <DropdownMenuItem
                           onClick={() => router.push(`/organizations/${org.id}`)}
                         >
-                          <Pencil className="mr-2 h-4 w-4" />
+                          <PencilSimple className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -277,7 +277,7 @@ export function OrganizationsList() {
                             onClick={() => handleSuspend(org)}
                             className="text-red-600"
                           >
-                            <Ban className="mr-2 h-4 w-4" />
+                            <Prohibit className="mr-2 h-4 w-4" />
                             Suspend
                           </DropdownMenuItem>
                         )}

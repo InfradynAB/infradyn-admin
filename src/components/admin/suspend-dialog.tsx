@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle } from "lucide-react";
+import { Warning } from "@phosphor-icons/react";
 
 interface SuspendDialogProps {
   open: boolean;
@@ -44,7 +44,7 @@ export function SuspendDialog({
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <Warning className="h-5 w-5 text-red-600" />
             </div>
             <div>
               <DialogTitle>Suspend Organization</DialogTitle>

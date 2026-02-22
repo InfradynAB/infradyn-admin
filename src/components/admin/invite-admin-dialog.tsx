@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { inviteOrganizationAdmin } from "@/lib/actions/super-admin";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 
 interface InviteAdminDialogProps {
   open: boolean;
@@ -64,7 +64,7 @@ export function InviteAdminDialog({
         <DialogHeader>
           <DialogTitle>Invite Organization Admin</DialogTitle>
           <DialogDescription>
-            Invite an Admin to manage <span className="font-medium">{organizationName}</span>. 
+            Invite an Admin to manage <span className="font-medium">{organizationName}</span>.
             They&apos;ll be able to add PMs, Suppliers, and QA members in the Materials App.
           </DialogDescription>
         </DialogHeader>
@@ -113,7 +113,7 @@ export function InviteAdminDialog({
             >
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
                   Sending...
                 </>
               ) : (

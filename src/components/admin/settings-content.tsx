@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { inviteSuperAdmin } from "@/lib/actions/super-admin";
 import { toast } from "sonner";
-import { Mail, Shield } from "lucide-react";
+import { Envelope, ShieldCheck } from "@phosphor-icons/react";
 
 export function SettingsContent() {
   const [inviteEmail, setInviteEmail] = useState("");
@@ -35,7 +35,7 @@ export function SettingsContent() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-[#0F6157]" />
+            <ShieldCheck className="h-5 w-5 text-primary" />
             <CardTitle>Super Admin Team</CardTitle>
           </div>
           <CardDescription>
@@ -58,10 +58,9 @@ export function SettingsContent() {
                 />
                 <Button
                   type="submit"
-                  className="bg-[#0F6157] hover:bg-[#0d5048]"
                   disabled={loading}
                 >
-                  <Mail className="mr-2 h-4 w-4" />
+                  <Envelope className="mr-2 h-4 w-4" />
                   Send Invite
                 </Button>
               </div>

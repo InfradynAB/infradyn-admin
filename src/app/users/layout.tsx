@@ -22,7 +22,7 @@ export default async function UsersLayout({ children }: { children: ReactNode })
   return (
     <div className="min-h-screen bg-background">
       <AdminSidebar />
-      <div className="lg:pl-[260px]">
+      <div className="lg:pl-[240px]">
         <AdminHeader />
         <main className="p-6 lg:p-8">
           <div className="max-w-[1600px] mx-auto">{children}</div>

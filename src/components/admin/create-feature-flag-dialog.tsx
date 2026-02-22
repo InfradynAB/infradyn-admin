@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createFeatureFlag } from "@/lib/actions/feature-flags";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { CircleNotch } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 
 export function CreateFeatureFlagDialog({ children }: { children: ReactNode }) {
@@ -125,7 +125,7 @@ export function CreateFeatureFlagDialog({ children }: { children: ReactNode }) {
             >
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
                   Creating...
                 </>
               ) : (

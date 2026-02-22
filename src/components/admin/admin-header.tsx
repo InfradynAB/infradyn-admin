@@ -2,123 +2,116 @@
 
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Bell, Moon, Sun, Search } from "lucide-react";
+import { Bell, Sun, Moon, MagnifyingGlass } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
-import { Input } from "@/components/ui/input";
-import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+// ─── Search Bar ───────────────────────────────────────────────────────────────
+
+function HeaderSearch() {
+  return (
+    <div className="relative w-full max-w-sm hidden md:flex items-center">
+      <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <input
+        type="text"
+        placeholder="Search something..."
+        className={cn(
+          "w-full pl-9 pr-4 py-2 text-sm rounded-xl transition-all duration-200",
+          "bg-muted/60 border border-border text-foreground placeholder:text-muted-foreground",
+          "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:bg-card"
+        )}
+      />
+      <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted rounded border border-border">
+        ⌘K
+      </kbd>
+    </div>
+  );
+}
+
+// ─── Icon Button ──────────────────────────────────────────────────────────────
+
+function IconButton({
+  onClick,
+  children,
+  badge,
+}: {
+  onClick?: () => void;
+  children: React.ReactNode;
+  badge?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="relative h-9 w-9 rounded-xl bg-muted/60 border border-border flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200"
+    >
+      {children}
+      {badge && (
+        <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 border-2 border-background" />
+      )}
+    </button>
+  );
+}
+
+// ─── User Avatar ──────────────────────────────────────────────────────────────
+
+function HeaderAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  return (
+    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-lg shadow-violet-900/30 cursor-pointer">
+      <span className="text-xs font-bold text-white">{initials}</span>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function AdminHeader() {
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    const getUser = async () => {
-      const response = await authClient.getSession();
-      if (response?.data?.user) {
-        setUser({
-          name: response.data.user.name,
-          email: response.data.user.email,
-        });
+    authClient.getSession().then((res) => {
+      if (res?.data?.user) {
+        setUser({ name: res.data.user.name, email: res.data.user.email });
       }
-    };
-    getUser();
+    });
   }, []);
 
-  const handleSignOut = async () => {
-    await authClient.signOut();
-    router.push("/sign-in");
-  };
-
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b">
-      <div className="flex items-center justify-between px-6 h-16">
-        {/* Search */}
-        <div className="hidden md:flex items-center flex-1 max-w-md">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search organizations, users..." 
-              className="pl-9 bg-muted/50 border-0 focus-visible:ring-1"
-            />
-          </div>
-        </div>
+    <header className="sticky top-0 z-40 h-16 flex items-center px-6 gap-4 border-b border-border bg-background/80 backdrop-blur-xl">
+      <HeaderSearch />
 
-        <div className="flex-1 md:hidden" />
+      {/* Spacer */}
+      <div className="flex-1" />
 
-        {/* Right side actions */}
-        <div className="flex items-center gap-2">
-          {/* Theme Toggle */}
-          {mounted && (
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="rounded-full"
-            >
-              {theme === "dark" ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
-          )}
+      {/* Actions */}
+      <div className="flex items-center gap-2.5">
+        {/* Theme toggle */}
+        {mounted && (
+          <IconButton onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </IconButton>
+        )}
 
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative rounded-full">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
-          </Button>
+        {/* Notifications */}
+        <IconButton badge>
+          <Bell className="h-4 w-4" />
+        </IconButton>
 
-          {/* User menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src="" />
-                  <AvatarFallback className="bg-gradient-to-br from-[#0F6157] to-[#0d5048] text-white text-sm font-medium">
-                    {user?.name?.charAt(0).toUpperCase() || "A"}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
-                  <span className="inline-flex items-center gap-1 text-xs text-[#0F6157] font-medium">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#0F6157]" />
-                    Super Admin
-                  </span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/admin-settings")}>
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                className="text-red-600 focus:text-red-600"
-                onClick={handleSignOut}
-              >
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* User */}
+        {user && <HeaderAvatar name={user.name} />}
       </div>
     </header>
   );
