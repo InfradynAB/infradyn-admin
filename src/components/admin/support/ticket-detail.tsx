@@ -61,6 +61,7 @@ export function TicketDetail({ ticketId }: { ticketId: string }) {
   const [posting, setPosting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const statusOptions = useMemo(() => {
     if (!ticket) return [] as TicketStatus[];
@@ -85,6 +86,17 @@ export function TicketDetail({ ticketId }: { ticketId: string }) {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketId]);
+
+  useEffect(() => {
+    if (!ticket?.messages?.length) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [ticket?.messages?.length]);
 
   const handleUpload = async (fileToUpload: File) => {
     const res = await fetch("/api/support/upload", {
@@ -246,96 +258,115 @@ export function TicketDetail({ ticketId }: { ticketId: string }) {
 
         {/* Messages */}
         <Card>
-          <CardContent className="pt-6 space-y-3">
-            {ticket.messages.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No messages yet</div>
-            ) : (
-              ticket.messages.map((m) => {
-                const align = m.isFromSupport ? "justify-end" : "justify-start";
-                const bubble = m.isInternal
-                  ? "bg-amber-500/10 border-amber-500/20"
-                  : m.isFromSupport
-                    ? "bg-primary/10 border-primary/20"
-                    : "bg-muted/50";
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">Responses</div>
+              <div className="text-xs text-muted-foreground">{ticket.messages.length} messages</div>
+            </div>
 
-                return (
-                  <div key={m.id} className={cn("flex", align)}>
-                    <div className={cn("max-w-[85%] rounded-lg border p-3", bubble)}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium">
-                          {m.isInternal ? "Internal Note" : m.sender?.name || m.sender?.email || "Unknown"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {m.createdAt ? format(m.createdAt, "PP p") : ""}
+            <div
+              ref={messagesContainerRef}
+              className={cn(
+                "rounded-lg border bg-muted/20 p-3 sm:p-4",
+                ticket.messages.length > 3
+                  ? "h-[360px] overflow-y-auto"
+                  : "h-auto overflow-y-visible"
+              )}
+            >
+              {ticket.messages.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No messages yet</div>
+              ) : (
+                <div className="space-y-3 sm:space-y-4">
+                  {ticket.messages.map((m) => {
+                    const align = m.isFromSupport ? "justify-end" : "justify-start";
+                    const bubble = m.isInternal
+                      ? "bg-amber-500/10 border-amber-500/20"
+                      : m.isFromSupport
+                        ? "bg-primary/10 border-primary/20"
+                        : "bg-background";
+
+                    return (
+                      <div key={m.id} className={cn("flex w-full", align)}>
+                        <div className={cn("w-full max-w-[85%] rounded-lg border p-3 sm:p-4", bubble)}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="text-sm font-medium leading-5">
+                              {m.isInternal ? "Internal Note" : m.sender?.name || m.sender?.email || "Unknown"}
+                            </div>
+                            <div className="text-xs text-muted-foreground whitespace-nowrap">
+                              {m.createdAt ? format(m.createdAt, "PP p") : ""}
+                            </div>
+                          </div>
+                          <div className="mt-2.5 text-sm whitespace-pre-wrap leading-6">{m.content}</div>
+                          {m.attachmentUrl ? (
+                            <div className="mt-3">
+                              {m.attachmentType?.startsWith("image/") ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={m.attachmentUrl}
+                                  alt={m.attachmentName || "attachment"}
+                                  className="max-h-64 rounded-md border"
+                                />
+                              ) : (
+                                <a
+                                  href={m.attachmentUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-sm underline"
+                                >
+                                  Download attachment
+                                </a>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="mt-2 text-sm whitespace-pre-wrap">{m.content}</div>
-                      {m.attachmentUrl ? (
-                        <div className="mt-3">
-                          {m.attachmentType?.startsWith("image/") ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={m.attachmentUrl}
-                              alt={m.attachmentName || "attachment"}
-                              className="max-h-64 rounded-md border"
-                            />
-                          ) : (
-                            <a
-                              href={m.attachmentUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sm underline"
-                            >
-                              Download attachment
-                            </a>
-                          )}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         {/* Reply form */}
-        <Card>
-          <CardContent className="pt-6 space-y-3">
-            <Textarea
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              placeholder="Write a reply..."
-              className="min-h-[120px]"
-            />
+        {ticket.status !== "CLOSED" ? (
+          <Card>
+            <CardContent className="pt-6 space-y-3">
+              <Textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                placeholder="Write a reply..."
+                className="min-h-[120px]"
+              />
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  className="max-w-[320px]"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  accept="image/*,application/pdf"
-                />
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={isInternal}
-                    onCheckedChange={(v) => setIsInternal(Boolean(v))}
-                    id="internal-note"
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    className="max-w-[320px]"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    accept="image/*,application/pdf"
                   />
-                  <label htmlFor="internal-note" className="text-sm text-muted-foreground">
-                    Mark as Internal Note
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={isInternal}
+                      onCheckedChange={(v) => setIsInternal(Boolean(v))}
+                      id="internal-note"
+                    />
+                    <label htmlFor="internal-note" className="text-sm text-muted-foreground">
+                      Mark as Internal Note
+                    </label>
+                  </div>
                 </div>
-              </div>
 
-              <Button onClick={submitReply} disabled={posting || ticket.status === "CLOSED"}>
-                {posting ? "Posting..." : "Post Reply"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                <Button onClick={submitReply} disabled={posting}>
+                  {posting ? "Posting..." : "Post Reply"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
 
       {/* Admin controls */}

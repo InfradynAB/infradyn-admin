@@ -5,7 +5,6 @@ import {
   supportTicket,
   supportTicketMessage,
   user,
-  organization,
 } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/rbac";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
@@ -347,12 +346,19 @@ export async function addTicketReply(formData: FormData) {
         });
 
         if (ticketWithRaiser?.raiser?.email) {
+          const ticketUrlBase =
+            process.env.MATERIALS_APP_URL ||
+            process.env.NEXT_PUBLIC_MATERIALS_APP_URL ||
+            process.env.MAIN_APP_URL ||
+            "https://materials.infradyn.com";
+
           const emailHtml = await render(
             TicketResponseEmail({
               userName: ticketWithRaiser.raiser.name || "there",
               ticketNumber: ticketWithRaiser.ticketNumber,
               subject: ticketWithRaiser.subject,
-              responseMessage: content,
+              responsePreview: content,
+              ticketUrl: `${ticketUrlBase.replace(/\/$/, "")}/dashboard/support/${ticketId}`,
             })
           );
 
