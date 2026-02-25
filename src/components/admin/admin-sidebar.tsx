@@ -12,6 +12,7 @@ import {
   Gear,
   SignOut,
 } from "@phosphor-icons/react";
+import { LifeBuoy } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -26,6 +27,7 @@ const mainNav = [
 const systemNav = [
   { name: "Feature Flags", href: "/feature-flags", icon: Flag },
   { name: "Audit Logs", href: "/audit-logs", icon: ListBullets },
+  { name: "Support", href: "/support", icon: LifeBuoy },
   { name: "Settings", href: "/admin-settings", icon: Gear },
 ];
 

@@ -13,6 +13,17 @@ export function FeatureFlagsList() {
   const [flags, setFlags] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const loadFlags = async () => {
+      const result = await listFeatureFlags();
+      if (result.success) {
+        setFlags(result.flags || []);
+      }
+      setLoading(false);
+    };
+    loadFlags();
+  }, []);
+
   const loadFlags = async () => {
     const result = await listFeatureFlags();
     if (result.success) {
@@ -21,15 +32,11 @@ export function FeatureFlagsList() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadFlags();
-  }, []);
-
   const handleToggle = async (key: string, currentState: boolean) => {
     const result = await toggleFeatureFlag(key, !currentState);
     if (result.success) {
       toast.success(`Feature flag ${!currentState ? "enabled" : "disabled"}`);
-      loadFlags();
+      await loadFlags();
     } else {
       toast.error(result.error || "Failed to toggle feature flag");
     }
@@ -80,7 +87,7 @@ export function FeatureFlagsList() {
                   )}
                 </div>
                 <Button variant="ghost" size="sm">
-                  <Settings className="h-4 w-4 mr-2" />
+                  <Gear className="h-4 w-4 mr-2" />
                   Configure
                 </Button>
               </div>

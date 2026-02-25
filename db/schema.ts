@@ -30,6 +30,20 @@ export const conflictSeverityEnum = pgEnum('conflict_severity', ['LOW', 'MEDIUM'
 export const qaTaskStatusEnum = pgEnum('qa_task_status', ['PENDING', 'IN_PROGRESS', 'PASSED', 'FAILED', 'WAIVED']);
 export const commentParentTypeEnum = pgEnum('comment_parent_type', ['PO', 'SHIPMENT', 'DELIVERY', 'QA_TASK', 'INVOICE']);
 
+// Change Order Category for KPI breakdown
+export const coCategoryEnum = pgEnum('co_category', ['SCOPE', 'RATE', 'QUANTITY', 'SCHEDULE']);
+
+// Support Ticketing Enums
+export const supportTicketCategoryEnum = pgEnum('support_ticket_category', [
+    'TECHNICAL', 'BILLING', 'ACCESS_ISSUE', 'BUG_REPORT', 'DATA_ISSUE', 'FEATURE_REQUEST', 'GENERAL', 'OTHER'
+]);
+export const supportTicketStatusEnum = pgEnum('support_ticket_status', [
+    'OPEN', 'IN_PROGRESS', 'AWAITING_USER', 'RESOLVED', 'CLOSED'
+]);
+export const supportTicketPriorityEnum = pgEnum('support_ticket_priority', [
+    'LOW', 'MEDIUM', 'HIGH', 'URGENT'
+]);
+
 // Multi-provider logistics
 export const logisticsProviderEnum = pgEnum('logistics_provider', [
     'DHL_EXPRESS', 'DHL_FREIGHT', 'MAERSK', 'OTHER'
@@ -44,6 +58,19 @@ export const shipmentEventTypeEnum = pgEnum('shipment_event_type', [
     'DELIVERED', 'EXCEPTION', 'HELD_CUSTOMS', 'RETURNED',
     // Common
     'ETA_UPDATE', 'LOCATION_SCAN', 'OTHER'
+]);
+
+// Alert Management Enums
+export const alertTypeEnum = pgEnum('alert_type', [
+    'OVERDUE_DELIVERY', 'NCR_OPEN', 'INVOICE_PENDING', 'DOCUMENT_EXPIRING',
+    'MILESTONE_DUE', 'BUDGET_EXCEEDED', 'SUPPLIER_COMPLIANCE', 'QA_FAILED',
+    'PO_APPROVAL_PENDING', 'SHIPMENT_DELAYED', 'PAYMENT_OVERDUE', 'OTHER'
+]);
+
+export const alertSeverityEnum = pgEnum('alert_severity', ['INFO', 'WARNING', 'CRITICAL']);
+
+export const alertActionEnum = pgEnum('alert_action', [
+    'ACKNOWLEDGED', 'RESOLVED', 'ESCALATED', 'DISMISSED', 'SNOOZED'
 ]);
 
 
@@ -322,6 +349,10 @@ export const boqItem = pgTable('boq_item', {
     originalQuantity: numeric('original_quantity'), // Original before de-scope
     revisedQuantity: numeric('revised_quantity'), // After de-scope (null = use quantity)
     lockedForDeScope: boolean('locked_for_de_scope').default(false), // True if cannot reduce further
+
+    // Delivery Analytics Categorization — Phase: Material Delivery Categories
+    discipline: text('discipline'),      // L1: GROUNDWORKS | STRUCTURAL | ENVELOPE | ARCHITECTURAL | MEP | EXTERNAL
+    materialClass: text('material_class'), // L2: e.g. 'Reinforcement', 'HVAC', 'Roofing'
 });
 
 
@@ -674,6 +705,13 @@ export const ncr = pgTable('ncr', {
     creditNoteVerifiedAt: timestamp('credit_note_verified_at'),
     milestonesLockedIds: jsonb('milestones_locked_ids').$type<string[]>(),
 
+    // Financial & Schedule Impact (KPI tracking)
+    estimatedCost: numeric('estimated_cost').default('0'), // Estimated financial impact
+    actualCost: numeric('actual_cost'), // Final cost after resolution
+    scheduleImpactDays: integer('schedule_impact_days').default(0), // Days delayed due to NCR
+    hasFinancialImpact: boolean('has_financial_impact').default(false),
+    hasScheduleImpact: boolean('has_schedule_impact').default(false),
+
     // AI Summarizer
     aiSummary: text('ai_summary'),
     aiSummaryUpdatedAt: timestamp('ai_summary_updated_at'),
@@ -699,6 +737,9 @@ export const ncrComment = pgTable('ncr_comment', {
 
     // Visibility
     isInternal: boolean('is_internal').default(false), // Hidden from supplier
+
+    // Read tracking - stores array of { userId: string, readAt: string, role: string }
+    readBy: jsonb('read_by').$type<{ userId: string; readAt: string; role: string }[]>().default([]),
 });
 
 export const ncrAttachment = pgTable('ncr_attachment', {
@@ -901,6 +942,9 @@ export const changeOrder = pgTable('change_order', {
     changeOrderType: text('change_order_type').default('ADDITION'), // ADDITION, OMISSION
     clientInstructionId: uuid('client_instruction_id').references(() => clientInstruction.id),
     affectedBoqItemIds: jsonb('affected_boq_item_ids').$type<string[]>(), // BOQ items affected
+
+    // CO Category for KPI breakdown (scope/rate/quantity/schedule)
+    coCategory: text('co_category').default('SCOPE'), // SCOPE, RATE, QUANTITY, SCHEDULE
 });
 
 export const financialLedger = pgTable('financial_ledger', {
@@ -1045,6 +1089,77 @@ export const supplierAccuracy = pgTable('supplier_accuracy', {
     lastCalculatedAt: timestamp('last_calculated_at').defaultNow(),
 });
 
+// --- ALERT LOGS ---
+
+export const alertLog = pgTable('alert_log', {
+    ...baseColumns,
+    organizationId: uuid('organization_id').references(() => organization.id).notNull(),
+
+    // Alert details (snapshot at time of action)
+    alertType: alertTypeEnum('alert_type').notNull(),
+    alertSeverity: alertSeverityEnum('alert_severity').notNull(),
+    alertTitle: text('alert_title').notNull(),
+    alertDescription: text('alert_description'),
+
+    // Reference to the source entity (e.g., PO, NCR, Invoice, etc.)
+    entityType: text('entity_type'), // 'PO', 'NCR', 'INVOICE', 'SHIPMENT', etc.
+    entityId: uuid('entity_id'),
+    entityReference: text('entity_reference'), // Human-readable reference like PO number
+
+    // Who responded
+    respondedBy: text('responded_by').references(() => user.id).notNull(),
+
+    // Action taken
+    action: alertActionEnum('action').notNull(),
+    actionNotes: text('action_notes'), // Optional notes from the user
+
+    // Timing
+    alertGeneratedAt: timestamp('alert_generated_at'), // When the alert first appeared
+    respondedAt: timestamp('responded_at').defaultNow().notNull(),
+
+    // Additional context
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+}, (table) => [
+    index('alert_log_org_idx').on(table.organizationId),
+    index('alert_log_type_idx').on(table.alertType),
+    index('alert_log_user_idx').on(table.respondedBy),
+    index('alert_log_entity_idx').on(table.entityType, table.entityId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUPPORT TICKETS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const supportTicket = pgTable('support_ticket', {
+    ...baseColumns,
+    ticketNumber: text('ticket_number').notNull(), // e.g. TKT-0001
+    raisedBy: text('raised_by').references(() => user.id).notNull(),
+    organizationId: uuid('organization_id').references(() => organization.id),
+    category: supportTicketCategoryEnum('category').notNull().default('GENERAL'),
+    priority: supportTicketPriorityEnum('priority').notNull().default('MEDIUM'),
+    status: supportTicketStatusEnum('status').notNull().default('OPEN'),
+    subject: text('subject').notNull(),
+    description: text('description').notNull(),
+    assignedTo: text('assigned_to').references(() => user.id),
+    resolvedAt: timestamp('resolved_at'),
+    closedAt: timestamp('closed_at'),
+    lastActivityAt: timestamp('last_activity_at').defaultNow().notNull(),
+}, (t) => ({
+    ticketNumberUnq: uniqueIndex('support_ticket_ticket_number_unq').on(t.ticketNumber),
+}));
+
+export const supportTicketMessage = pgTable('support_ticket_message', {
+    ...baseColumns,
+    ticketId: uuid('ticket_id').references(() => supportTicket.id).notNull(),
+    senderId: text('sender_id').references(() => user.id).notNull(),
+    content: text('content').notNull(),
+    isFromSupport: boolean('is_from_support').default(false).notNull(),
+    isInternal: boolean('is_internal').default(false).notNull(),
+    attachmentUrl: text('attachment_url'),
+    attachmentName: text('attachment_name'),
+    attachmentType: text('attachment_type'),
+});
+
 // --- RELATIONS ---
 
 
@@ -1054,6 +1169,12 @@ export const organizationRelations = relations(organization, ({ many }) => ({
     // better to rely on members for mapping users to orgs if many-to-many or one-to-many via explicit table
     members: many(member),
     suppliers: many(supplier),
+    alertLogs: many(alertLog),
+}));
+
+export const alertLogRelations = relations(alertLog, ({ one }) => ({
+    organization: one(organization, { fields: [alertLog.organizationId], references: [organization.id] }),
+    responder: one(user, { fields: [alertLog.respondedBy], references: [user.id] }),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -1209,6 +1330,20 @@ export const systemConfigRelations = relations(systemConfig, ({ one }) => ({
 
 export const supplierAccuracyRelations = relations(supplierAccuracy, ({ one }) => ({
     supplier: one(supplier, { fields: [supplierAccuracy.supplierId], references: [supplier.id] }),
+}));
+
+// --- Support Tickets Relations ---
+
+export const supportTicketRelations = relations(supportTicket, ({ one, many }) => ({
+    raiser: one(user, { fields: [supportTicket.raisedBy], references: [user.id], relationName: 'ticketRaiser' }),
+    assignee: one(user, { fields: [supportTicket.assignedTo], references: [user.id], relationName: 'ticketAssignee' }),
+    organization: one(organization, { fields: [supportTicket.organizationId], references: [organization.id] }),
+    messages: many(supportTicketMessage),
+}));
+
+export const supportTicketMessageRelations = relations(supportTicketMessage, ({ one }) => ({
+    ticket: one(supportTicket, { fields: [supportTicketMessage.ticketId], references: [supportTicket.id] }),
+    sender: one(user, { fields: [supportTicketMessage.senderId], references: [user.id] }),
 }));
 
 
