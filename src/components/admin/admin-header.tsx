@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { Bell, Sun, Moon, MagnifyingGlass } from "@phosphor-icons/react";
+import { Bell, Sun, Moon, MagnifyingGlass, User, Gear, SignOut, CircleNotch } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 // ─── Search Bar ───────────────────────────────────────────────────────────────
 
@@ -52,9 +63,12 @@ function IconButton({
   );
 }
 
-// ─── User Avatar ──────────────────────────────────────────────────────────────
+// ─── User Avatar with Dropdown ─────────────────────────────────────────────────
 
-function HeaderAvatar({ name }: { name: string }) {
+function HeaderAvatar({ name, email }: { name: string; email: string }) {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -62,10 +76,65 @@ function HeaderAvatar({ name }: { name: string }) {
     .toUpperCase()
     .slice(0, 2);
 
+  async function handleSignOut() {
+    setIsLoading(true);
+    try {
+      await authClient.signOut();
+      toast.success("Signed out successfully");
+      router.push("/sign-in");
+    } catch (error) {
+      console.error("Sign out error:", error);
+      toast.error("Failed to sign out");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
-    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-lg shadow-violet-900/30 cursor-pointer">
-      <span className="text-xs font-bold text-white">{initials}</span>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-600 to-violet-800 flex items-center justify-center shadow-lg shadow-violet-900/30 cursor-pointer p-0 hover:opacity-90"
+        >
+          <span className="text-xs font-bold text-white">{initials}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-56" align="end" forceMount>
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">{name}</p>
+            <p className="text-xs leading-none text-muted-foreground">{email}</p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <a href="/profile" className="flex items-center">
+            <User className="mr-2 h-4 w-4" />
+            <span>Profile</span>
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <a href="/admin-settings" className="flex items-center">
+            <Gear className="mr-2 h-4 w-4" />
+            <span>Settings</span>
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer text-destructive focus:text-destructive"
+          onClick={handleSignOut}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <CircleNotch className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <SignOut className="mr-2 h-4 w-4" />
+          )}
+          <span>Sign out</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -111,7 +180,7 @@ export function AdminHeader() {
         </IconButton>
 
         {/* User */}
-        {user && <HeaderAvatar name={user.name} />}
+        {user && <HeaderAvatar name={user.name} email={user.email} />}
       </div>
     </header>
   );

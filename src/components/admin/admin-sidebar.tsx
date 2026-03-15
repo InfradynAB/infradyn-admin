@@ -7,6 +7,7 @@ import {
   SquaresFour,
   Buildings,
   Users,
+  User,
   Flag,
   ListBullets,
   Gear,
@@ -28,6 +29,7 @@ const systemNav = [
   { name: "Feature Flags", href: "/feature-flags", icon: Flag },
   { name: "Audit Logs", href: "/audit-logs", icon: ListBullets },
   { name: "Support", href: "/support", icon: LifeBuoy },
+  { name: "Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/admin-settings", icon: Gear },
 ];
 
